@@ -1,0 +1,1960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radioactive Decay Calculator - Unified</title>
+    
+    <!-- Fonts for both themes -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style id="theme-switcher-styles">
+        #theme-switcher-button {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1001; /* Above messageBox (z-50 in V1, z-index in V2.3 not specified but likely high) */
+            padding: 8px 10px;
+            background-color: #fff;
+            color: #333;
+            border: 1px solid #ccc;
+            border-radius: 50%; /* Circular button for gear icon */
+            cursor: pointer;
+            font-size: 20px; /* Gear icon size */
+            line-height: 1;
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s;
+        }
+        #theme-switcher-button:hover {
+            background-color: #f0f0f0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transform: scale(1.05);
+        }
+        body.theme-radioactive #theme-switcher-button {
+            background-color: var(--color-bg-light, #1a2233);
+            color: var(--color-accent-secondary-glow, #00f0ff);
+            border-color: var(--color-accent-secondary-glow, #00f0ff);
+            box-shadow: 0 0 8px var(--color-accent-secondary-glow, #00f0ff);
+        }
+         body.theme-radioactive #theme-switcher-button:hover {
+            background-color: color-mix(in srgb, var(--color-bg-light, #1a2233) 80%, white);
+            box-shadow: 0 0 12px var(--color-accent-secondary-glow, #00f0ff), 0 0 20px var(--color-accent-secondary-glow, #00f0ff);
+         }
+
+
+        #theme-switcher-modal {
+            position: fixed;
+            top: 65px; /* Below gear icon */
+            left: 15px;
+            z-index: 1000; 
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.25);
+            width: 220px;
+        }
+        #theme-switcher-modal.hidden {
+            display: none;
+        }
+        #theme-switcher-modal h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            color: #333;
+            font-weight: 600;
+        }
+        #theme-switcher-modal .theme-option-button {
+            display: block;
+            width: 100%;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            text-align: left;
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            cursor: pointer;
+            color: #333;
+            font-size: 0.9rem;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        #theme-switcher-modal .theme-option-button:hover {
+            background-color: #e9e9e9;
+            border-color: #ddd;
+        }
+        #theme-switcher-modal .theme-option-button.active-theme {
+            font-weight: bold;
+            background-color: #e0efff; 
+            border-color: #add8e6;
+            color: #0056b3;
+        }
+        #theme-switcher-modal button#close-theme-modal-button {
+            display: block;
+            width: 100%;
+            padding: 10px 12px;
+            margin-top: 15px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+        }
+        #theme-switcher-modal button#close-theme-modal-button:hover {
+            background-color: #5a6268;
+        }
+
+        /* Modal adjustments for Radioactive theme */
+        body.theme-radioactive #theme-switcher-modal {
+            background-color: var(--color-bg-medium, #101622);
+            color: var(--color-text-primary, #e0e6f0);
+            border-color: var(--color-accent-tertiary-glow, #aa00ff);
+            box-shadow: 0 0 15px var(--color-accent-tertiary-glow, #aa00ff);
+        }
+        body.theme-radioactive #theme-switcher-modal h2 {
+            color: var(--color-text-headings, #ffffff);
+        }
+        body.theme-radioactive #theme-switcher-modal .theme-option-button {
+            background-color: var(--color-bg-light, #1a2233);
+            color: var(--color-text-secondary, #9fadbf);
+            border-color: color-mix(in srgb, var(--color-accent-secondary-glow, #00f0ff) 35%, transparent);
+        }
+        body.theme-radioactive #theme-switcher-modal .theme-option-button:hover {
+            background-color: color-mix(in srgb, var(--color-bg-light, #1a2233) 80%, var(--color-accent-secondary-glow, #00f0ff) 20%);
+            border-color: var(--color-accent-secondary-glow, #00f0ff);
+        }
+        body.theme-radioactive #theme-switcher-modal .theme-option-button.active-theme {
+            background-color: var(--color-accent-primary-glow, #39ff14);
+            color: var(--color-bg-deep, #0a0f18);
+            border-color: var(--color-accent-primary-glow, #39ff14);
+            font-weight: bold;
+        }
+        body.theme-radioactive #theme-switcher-modal button#close-theme-modal-button {
+            background: var(--color-accent-tertiary-glow, #aa00ff);
+            color: var(--color-text-headings, #ffffff);
+        }
+        body.theme-radioactive #theme-switcher-modal button#close-theme-modal-button:hover {
+            background: color-mix(in srgb, var(--color-accent-tertiary-glow, #aa00ff) 85%, #fff);
+        }
+    </style>
+
+    <style id="theme-clean-styles">
+        /* --- START OF Half-Life_V1.html CSS --- */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #eef2f7; /* Lighter, cooler background */
+            color: #333; /* Default text color */
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 3rem auto; /* More top/bottom margin */
+            padding: 2.5rem; /* Slightly more padding */
+            background-color: white;
+            border-radius: 12px; /* Softer, larger radius */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); /* More pronounced shadow */
+        }
+
+        /* Typography & Headings */
+        .container > h1.text-3xl {
+            color: #2c3e50; /* Dark blue-gray */
+            font-weight: 700; /* Tailwind: font-bold */
+            text-align: center; /* Tailwind: text-center */
+            margin-top: 0; /* Tailwind: mt-0 */
+            margin-bottom: 0.5rem; /* Override Tailwind: mb-8 */
+        }
+        .container > h2.-mt-2.text-xl { /* Matches existing classes */
+            color: #34495e; /* Slightly lighter blue-gray */
+            margin-top: -0.5rem; /* Tailwind: -mt-2 */
+            font-weight: 500; /* Tailwind: font-medium */
+            text-align: center; /* Tailwind: text-center */
+            margin-bottom: 2rem; /* Override Tailwind: mb-5 */
+        }
+        .collapsible-inputs-section h3.text-lg { /* For section titles like "Residual Activity Details" */
+            color: #495057; /* Slightly muted header for these subsections */
+            font-weight: 600; /* Tailwind: font-medium is 500, this makes it a bit stronger */
+            font-size: 1.1rem; /* Tailwind: text-lg is 1.125rem, slightly smaller */
+            margin-bottom: 1.25rem; /* Tailwind: mb-3 */
+        }
+        .output-section h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #007bff; /* Primary blue for emphasis in output */
+            margin-bottom: 1rem;
+        }
+        .optional-section h2.text-xl { /* Matches existing classes */
+            color: #2c3e50;
+            font-weight: 600; /* Tailwind: font-semibold */
+            border-bottom: 2px solid #e0e6ed;
+            padding-bottom: 0.75rem;
+            margin-bottom: 1.5rem; /* Tailwind: mb-4 */
+        }
+
+        /* Labels */
+        label { /* General labels */
+            display: block;
+            margin-bottom: 0.6rem; /* Slightly more space */
+            font-weight: 500;
+            color: #4a5568; /* Tailwind gray-700 */
+            font-size: 0.9rem;
+        }
+        .unit-label { /* Specific label for unit dropdowns */
+            display: block;
+            font-size: 0.8rem; /* text-xs equivalent */
+            font-weight: 500;
+            color: #718096; /* Tailwind gray-600 */
+            margin-bottom: 0.25rem;
+        }
+
+        /* Input Fields, Selects */
+        input[type="number"], input[type="datetime-local"], select {
+            width: 100%;
+            padding: 0.85rem 1rem; /* Slightly more padding */
+            border: 1px solid #cbd5e0; /* Tailwind gray-400 */
+            border-radius: 8px; /* Softer radius */
+            box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            background-color: #fff;
+            color: #2d3748; /* Tailwind gray-800 */
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            font-size: 0.9rem;
+        }
+        input[type="number"]:focus, input[type="datetime-local"]:focus, select:focus {
+            border-color: #4A90E2; /* A nice blue for focus */
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.25), inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            outline: none;
+        }
+        input:disabled, select:disabled {
+            background-color: #edf2f7; /* Tailwind gray-200 */
+            cursor: not-allowed;
+            color: #a0aec0; /* Tailwind gray-500 */
+        }
+
+        /* Activity Input Structure & Alignment */
+        .activity-input-container {
+            display: flex;
+            align-items: flex-start; /* Align tops of wrappers */
+            gap: 0.75rem; /* space-x-3, kept from original */
+        }
+        .activity-input-wrapper {
+            flex-grow: 1; /* Kept from original */
+        }
+        .unit-selector-wrapper {
+            width: 130px; /* Kept from original */
+            flex-shrink: 0; /* Kept from original */
+        }
+        .inherited-unit-display {
+            width: 130px; /* Kept from original */
+            flex-shrink: 0; /* Kept from original */
+            display: flex;
+            align-items: center; /* Vertically center text */
+            justify-content: flex-start;
+            padding: 0.85rem 0.75rem; /* Match input's vertical padding for text centering */
+            font-size: 0.9rem; /* Match typical input text size */
+            color: #4a5568;
+            font-weight: 500;
+            background-color: #f8f9fa; /* Light background, distinct from input */
+            border: 1px solid #e2e8f0; /* Consistent border */
+            border-radius: 8px; /* Consistent radius */
+            box-sizing: border-box;
+            /* Aligns top of this box with top of the input field it's next to, accounting for the label above that input */
+            margin-top: calc((0.9rem * 1.6) + 0.6rem); /* (label_font-size * label_line-height) + label_margin-bottom */
+            height: calc(2 * 0.85rem + (0.9rem * 1.6) + 2px); /* Match total height of an input field (padding_T_B + text_line_height + border_T_B) */
+        }
+        .unit-select { /* Applied to the select element itself */
+            width: 100%; /* Kept from original */
+        }
+
+        /* Conversion Display */
+        .conversion-display {
+            font-size: 0.8rem;
+            color: #6c757d; /* Medium gray */
+            margin-top: 0.5rem;
+            min-height: 2.8em; /* Adjusted for potentially more lines or slightly larger font */
+            padding-left: 0.25rem;
+            line-height: 1.5;
+        }
+
+        /* Buttons */
+        .button {
+            background-color: #007bff; /* Primary blue */
+            background-image: linear-gradient(to bottom, #007bff, #0056b3);
+            color: white;
+            padding: 0.85rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s ease-in-out, background-image 0.2s ease-in-out, transform 0.1s ease, box-shadow 0.1s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            text-align: center;
+        }
+        .button:hover {
+            background-color: #0056b3;
+            background-image: linear-gradient(to bottom, #0069d9, #004085);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px -1px rgba(0,0,0,0.1), 0 4px 6px -1px rgba(0,0,0,0.07);
+        }
+        .button:active {
+            transform: translateY(0px);
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,0.1);
+        }
+        .button-small {
+            padding: 0.6rem 1.2rem;
+            font-size: 0.875rem;
+            width: auto;
+        }
+
+        /* Specific styles for toggle buttons (JS adds/removes Tailwind color classes) */
+        button#toggleResidualButton.bg-gray-500, button#toggleVolumeButton.bg-gray-500 {
+            background-color: #6c757d !important;
+            background-image: linear-gradient(to bottom, #6c757d, #5a6268) !important;
+        }
+        button#toggleResidualButton.bg-gray-500:hover, button#toggleVolumeButton.bg-gray-500:hover {
+            background-color: #5a6268 !important;
+            background-image: linear-gradient(to bottom, #5a6268, #495057) !important;
+        }
+        button#toggleResidualButton.bg-red-500, button#toggleVolumeButton.bg-red-500 { /* Active toggle state */
+            background-color: #e74c3c !important; /* A more modern red */
+            background-image: linear-gradient(to bottom, #e74c3c, #c0392b) !important;
+        }
+        button#toggleResidualButton.bg-red-500:hover, button#toggleVolumeButton.bg-red-500:hover {
+            background-color: #c0392b !important;
+            background-image: linear-gradient(to bottom, #c0392b, #a93226) !important;
+        }
+
+        /* Specific calculation buttons using existing IDs */
+        #calculateSpecificButton.bg-indigo-400 { /* Original Tailwind class */
+            background-color: #56ccf2 !important; /* A nice teal/cyan */
+            background-image: linear-gradient(to bottom, #56ccf2, #2f80ed) !important; /* Blue-ish gradient */
+        }
+        #calculateSpecificButton.bg-indigo-400:hover { /* Original Tailwind class */
+            background-color: #2f80ed !important;
+            background-image: linear-gradient(to bottom, #4abadd, #1f70dd) !important;
+        }
+        #calculateTimeToTargetButton.bg-teal-500 { /* Original Tailwind class */
+            background-color: #2ecc71 !important; /* Green */
+            background-image: linear-gradient(to bottom, #2ecc71, #27ae60) !important;
+        }
+        #calculateTimeToTargetButton.bg-teal-500:hover { /* Original Tailwind class */
+            background-color: #27ae60 !important;
+            background-image: linear-gradient(to bottom, #27ae60, #1f8b4c) !important;
+        }
+
+        /* Output Sections */
+        .output-section {
+            margin-top: 2.5rem;
+            padding: 2rem;
+            background-color: #f8f9fa; /* Light, clean background */
+            border-radius: 8px;
+            border: 1px solid #e9ecef; /* Softer border */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .output-value, .output-value-multi {
+            font-size: 1.35rem; /* Larger for results */
+            font-weight: 700;
+            color: #2c3e50; /* Dark blue-gray for clarity */
+            line-height: 1.7; /* More spacing for multi-line results */
+            padding: 0.5rem 0;
+        }
+        .output-time, .output-datetime {
+            font-size: 0.9rem;
+            color: #5a6268; /* Medium gray for secondary info */
+            margin-top: 0.5rem;
+        }
+        .output-datetime span.output-value { /* For the specific span in TimeToTarget */
+             font-size: 1.1rem; /* Make date/time slightly less huge than activity values */
+             font-weight: 600;
+             color: #2c3e50;
+        }
+
+
+        /* Error Messages */
+        .error-message {
+            color: #e74c3c; /* Modern red */
+            font-size: 0.85rem;
+            margin-top: 0.35rem;
+            font-weight: 500;
+        }
+
+        /* Collapsible Sections Layout */
+        .optional-section, .residual-section-container, .volume-concentration-section-container {
+            margin-top: 2.5rem;
+            padding-top: 2rem;
+            border-top: 1px solid #dee2e6; /* Clearer separator */
+        }
+        .collapsible-inputs-section { /* Common class for residual and volume inputs */
+            margin-top: 1.5rem; /* Tailwind: mt-4 */
+            padding: 1.5rem;
+            background-color: #fdfdfe; /* Slightly off-white */
+            border-radius: 8px; /* Tailwind: rounded-0.5rem */
+            border: 1px solid #e9ecef; /* Tailwind: border-e5e7eb */
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
+        }
+        
+        /* Global Message Box */
+        #messageBox { /* Base style for the box if JS makes it visible */
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            font-size: 0.95rem;
+            /* JS controls visibility and specific color classes */
+        }
+        /* Override Tailwind colors for message box types */
+        #messageBox.bg-red-100 { /* Error type */
+            background-color: #f8d7da !important;
+            border-color: #f5c6cb !important;
+            color: #721c24 !important;
+        }
+        #messageBox.bg-red-100 strong {
+            color: #721c24 !important;
+        }
+        #messageBox.bg-red-100 #closeMessageButton svg { /* SVG uses fill-current */
+            fill: #721c24 !important; /* Override Tailwind's text-red-500 */
+        }
+
+        #messageBox.bg-blue-100 { /* Info/Success type */
+            background-color: #d1ecf1 !important;
+            border-color: #bee5eb !important;
+            color: #0c5460 !important;
+        }
+        #messageBox.bg-blue-100 strong {
+            color: #0c5460 !important;
+        }
+        #messageBox.bg-blue-100 #closeMessageButton svg {
+             fill: #0c5460 !important;
+        }
+        /* --- END OF Half-Life_V1.html CSS --- */
+
+        /* Styles for theme structural compatibility */
+        body.theme-clean #dot-background-canvas { display: none !important; }
+        body.theme-clean .container > .content-wrapper { display: contents; }
+    </style>
+
+    <style id="theme-radioactive-styles" disabled>
+        /* --- START OF Half-Life_V2.3.html CSS --- */
+        :root {
+            --color-bg-deep: #0a0f18; /* Deep space blue/black */
+            --color-bg-medium: #101622; /* Slightly lighter for containers */
+            --color-bg-light: #1a2233; /* For input fields, cards */
+            
+            --color-text-primary: #e0e6f0; /* Light grayish blue for text */
+            --color-text-secondary: #9fadbf; /* Softer text, better contrast */
+            --color-text-headings: #ffffff;
+
+            --color-accent-primary-glow: #39ff14; /* Neon green */
+            --color-accent-secondary-glow: #00f0ff; /* Neon cyan/blue */
+            --color-accent-tertiary-glow: #aa00ff; /* Electric purple */
+            
+            --color-error: #ff3333; /* Brighter red for errors */
+            --color-info: #00ccff; /* Brighter info blue */
+
+            /* Glows based on primary accent (green) */
+            --glow-primary-strong: 0 0 12px var(--color-accent-primary-glow), 0 0 25px var(--color-accent-primary-glow), 0 0 40px color-mix(in srgb, var(--color-accent-primary-glow) 60%, transparent);
+            --glow-primary-medium: 0 0 7px var(--color-accent-primary-glow), 0 0 15px color-mix(in srgb, var(--color-accent-primary-glow) 70%, transparent);
+            --glow-primary-subtle: 0 0 4px var(--color-accent-primary-glow), 0 0 8px color-mix(in srgb, var(--color-accent-primary-glow) 40%, transparent);
+
+            /* Glows based on secondary accent (cyan) */
+            --glow-secondary-medium: 0 0 7px var(--color-accent-secondary-glow), 0 0 15px color-mix(in srgb, var(--color-accent-secondary-glow) 70%, transparent);
+            --glow-secondary-subtle: 0 0 4px var(--color-accent-secondary-glow), 0 0 8px color-mix(in srgb, var(--color-accent-secondary-glow) 40%, transparent);
+            
+            /* Glows based on tertiary accent (purple) */
+            --glow-tertiary-medium: 0 0 7px var(--color-accent-tertiary-glow), 0 0 15px color-mix(in srgb, var(--color-accent-tertiary-glow) 60%, transparent);
+            --glow-tertiary-subtle: 0 0 4px var(--color-accent-tertiary-glow), 0 0 8px color-mix(in srgb, var(--color-accent-tertiary-glow) 30%, transparent);
+
+            --glow-error: 0 0 8px var(--color-error), 0 0 15px color-mix(in srgb, var(--color-error) 50%, transparent);
+            --glow-info: 0 0 8px var(--color-info), 0 0 15px color-mix(in srgb, var(--color-info) 50%, transparent);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--color-bg-deep);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--color-accent-tertiary-glow);
+            border-radius: 10px;
+            border: 2px solid var(--color-bg-deep);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: color-mix(in srgb, var(--color-accent-tertiary-glow) 70%, #fff);
+        }
+        body { /* Firefox scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: var(--color-accent-tertiary-glow) var(--color-bg-deep);
+        }
+
+        @keyframes animateGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            /* --- Animated Gradient Background --- */
+            background: linear-gradient(-45deg, 
+                var(--color-bg-deep), 
+                var(--color-bg-medium), 
+                color-mix(in srgb, var(--color-bg-deep) 80%, var(--color-accent-tertiary-glow) 20%), 
+                var(--color-bg-medium),
+                var(--color-bg-deep)
+            );
+            background-size: 400% 400%;
+            animation: animateGradient 20s ease infinite;
+            /* --- End Animated Gradient --- */
+            color: var(--color-text-primary);
+            margin: 0;
+            padding: 1rem;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px; 
+            margin: 2rem auto;
+            padding: 2.5rem;
+            background: linear-gradient(145deg, var(--color-bg-medium), color-mix(in srgb, var(--color-bg-medium) 80%, var(--color-bg-deep)));
+            border-radius: 1rem;
+            box-shadow: 0 0 25px rgba(0,0,0,0.5), 
+                        0 0 15px var(--glow-tertiary-subtle);
+            border: 1px solid color-mix(in srgb, var(--color-accent-tertiary-glow) 30%, transparent);
+            position: relative; /* Crucial for absolute positioning of dot canvas */
+            overflow: hidden; /* To contain the dots and container glow */
+        }
+
+        #dot-background-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0; /* Behind content-wrapper */
+        }
+
+        .dot {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background-color: var(--color-accent-secondary-glow);
+            opacity: 0;
+            animation: glowDot 3s infinite ease-in-out;
+            box-shadow: 0 0 5px color-mix(in srgb, var(--color-accent-secondary-glow) 50%, transparent),
+                        0 0 10px color-mix(in srgb, var(--color-accent-secondary-glow) 30%, transparent);
+        }
+
+        @keyframes glowDot {
+            0%, 100% { 
+                opacity: 0; 
+                transform: scale(0.7);
+            }
+            50% { 
+                opacity: 0.7; /* Max opacity for dots */
+                transform: scale(1);
+            }
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1; /* Above dot-background-canvas */
+            background-color: transparent; /* Allows container gradient and dots to show */
+        }
+
+
+        /* Typography */
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--color-text-headings);
+        }
+
+        h1.text-3xl { /* V2.3 applies this style directly to h1, not .container > h1 */
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem; 
+            font-weight: 700;
+            line-height: 1.2;
+            text-align: center; 
+            margin-top: 0; 
+            margin-bottom: 0.5rem; 
+            color: var(--color-accent-primary-glow);
+            text-shadow: var(--glow-primary-medium);
+        }
+        h2.-mt-2.text-xl { /* V2.3 applies this style directly to h2 */
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 500;
+            text-align: center; 
+            margin-top: -0.5rem; 
+            margin-bottom: 2.5rem; 
+            color: var(--color-text-secondary);
+            text-shadow: 0 0 8px color-mix(in srgb, var(--color-text-secondary) 50%, transparent);
+        }
+        
+        .input-group {
+            margin-bottom: 1.75rem;
+        }
+        label { 
+            display: block;
+            margin-bottom: 0.6rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: var(--color-text-secondary);
+            text-shadow: 0 0 3px color-mix(in srgb, var(--color-text-secondary) 30%, transparent);
+        }
+        .unit-label { 
+            display: block;
+            font-size: 0.75rem; 
+            font-weight: 400; 
+            color: var(--color-text-secondary); 
+            margin-bottom: 0.25rem; 
+        }
+
+        .activity-input-container {
+            display: flex; 
+            align-items: flex-start;  
+            gap: 1rem; 
+        }
+        .activity-input-wrapper {
+            flex-grow: 1; 
+        }
+
+        input[type="number"], input[type="datetime-local"], select {
+            width: 100%; 
+            padding: 0.85rem 1rem;
+            border: 1px solid color-mix(in srgb, var(--color-accent-secondary-glow) 35%, transparent);
+            border-radius: 0.375rem; 
+            background-color: var(--color-bg-light);
+            color: var(--color-text-primary);
+            box-shadow: inset 0 1px 4px rgba(0,0,0,0.5);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        input[type="number"]::placeholder, 
+        input[type="datetime-local"]::placeholder {
+            color: color-mix(in srgb, var(--color-text-secondary) 70%, transparent);
+            opacity: 1;
+        }
+        input[type="number"]:focus, 
+        input[type="datetime-local"]:focus, 
+        select:focus {
+            outline: none;
+            border-color: var(--color-accent-secondary-glow);
+            box-shadow: inset 0 1px 4px rgba(0,0,0,0.5), var(--glow-secondary-subtle);
+        }
+        input:disabled, select:disabled {
+            background-color: color-mix(in srgb, var(--color-bg-light) 60%, var(--color-bg-deep));
+            color: var(--color-text-secondary);
+            border-color: color-mix(in srgb, var(--color-text-secondary) 20%, transparent);
+            cursor: not-allowed;
+            box-shadow: inset 0 1px 4px rgba(0,0,0,0.3);
+        }
+        
+        select {
+            appearance: none;
+            -webkit-appearance: none; /* Safari and Chrome */
+            -moz-appearance: none; /* Firefox */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239fadbf'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.25em;
+            padding-right: 2.5rem;
+        }
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            filter: invert(80%) sepia(50%) saturate(300%) hue-rotate(150deg) brightness(100%) contrast(90%); 
+        }
+
+        .unit-selector-wrapper { 
+            width: 130px; 
+            flex-shrink: 0;
+        }
+        .inherited-unit-display { 
+            width: 130px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center; 
+            justify-content: flex-start; 
+            /* padding-top: calc(0.85rem + 1px); Removed to align with V1 behavior */
+            /* V1 calculation for margin-top and height to align inherited unit display might be more precise if active */
+            padding: 0.85rem 0.75rem; /* Match input's vertical padding for text centering (from V1) */
+            margin-top: calc((0.9rem * 1.6) + 0.6rem); /* (label_font-size * label_line-height) + label_margin-bottom (from V1) */
+            height: calc(2 * 0.85rem + (0.9rem * 1.6) + 2px); /* (from V1) */
+            font-size: 0.9rem; 
+            color: var(--color-text-secondary); 
+            font-weight: 500;
+            opacity: 0.9;
+            /* Adding background and border similar to V1 for consistency when radioactive theme is active */
+            background-color: color-mix(in srgb, var(--color-bg-light) 80%, transparent);
+            border: 1px solid color-mix(in srgb, var(--color-accent-secondary-glow) 25%, transparent);
+            border-radius: 0.375rem; /* Match input border-radius */
+            box-sizing: border-box;
+        }
+        .conversion-display {
+            font-size: 0.8rem; 
+            color: var(--color-text-secondary); 
+            margin-top: 0.5rem;
+            min-height: 2.5em; /* V2.3 uses 2.5em, V1 uses 2.8em. Let's use 2.8em for potentially more lines. */
+            min-height: 2.8em; 
+            line-height: 1.5;
+        }
+         .conversion-display br { 
+            content: "";
+            display: block;
+            margin-bottom: 0.2em;
+        }
+
+        .button {
+            background: var(--color-accent-primary-glow);
+            color: var(--color-bg-deep);
+            padding: 0.85rem 1.5rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%; 
+            text-transform: uppercase;
+            letter-spacing: 0.8px; 
+            box-shadow: var(--glow-primary-subtle), inset 0 0 8px rgba(255,255,255,0.2);
+            transition: background-color 0.3s ease, transform 0.15s ease, box-shadow 0.3s ease;
+        }
+        .button:hover {
+            background-color: color-mix(in srgb, var(--color-accent-primary-glow) 90%, #fff);
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: var(--glow-primary-medium), inset 0 0 10px rgba(255,255,255,0.3);
+        }
+        .button:active {
+            transform: translateY(0px) scale(1);
+            box-shadow: 0 0 3px var(--color-accent-primary-glow), inset 0 0 10px rgba(0,0,0,0.2);
+        }
+
+        .button-small {
+            padding: 0.6rem 1.2rem;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            width: auto; 
+        }
+        
+        #toggleResidualButton.bg-gray-500, #toggleVolumeButton.bg-gray-500 {
+            background: var(--color-accent-tertiary-glow);
+            color: var(--color-text-headings);
+            box-shadow: var(--glow-tertiary-subtle), inset 0 0 5px rgba(255,255,255,0.15);
+        }
+        #toggleResidualButton.bg-gray-500:hover, #toggleVolumeButton.bg-gray-500:hover {
+            background-color: color-mix(in srgb, var(--color-accent-tertiary-glow) 85%, #fff);
+             box-shadow: var(--glow-tertiary-medium), inset 0 0 8px rgba(255,255,255,0.3);
+        }
+        #toggleResidualButton.bg-red-500, #toggleVolumeButton.bg-red-500 {
+            background: var(--color-error);
+            color: var(--color-text-headings);
+            box-shadow: var(--glow-error), inset 0 0 5px rgba(255,255,255,0.15);
+        }
+        #toggleResidualButton.bg-red-500:hover, #toggleVolumeButton.bg-red-500:hover {
+            background-color: color-mix(in srgb, var(--color-error) 85%, #fff);
+            box-shadow: 0 0 12px var(--color-error), 0 0 25px color-mix(in srgb, var(--color-error) 70%, transparent), inset 0 0 8px rgba(255,255,255,0.3);
+        }
+
+        #calculateSpecificButton.bg-indigo-400 {
+            background: var(--color-accent-secondary-glow);
+            color: var(--color-bg-deep);
+            box-shadow: var(--glow-secondary-subtle), inset 0 0 5px rgba(255,255,255,0.15);
+        }
+        #calculateSpecificButton.bg-indigo-400:hover {
+            background-color: color-mix(in srgb, var(--color-accent-secondary-glow) 85%, #fff);
+            box-shadow: var(--glow-secondary-medium), inset 0 0 8px rgba(255,255,255,0.3);
+        }
+        /* #calculateTimeToTargetButton.bg-teal-500 uses default .button style (primary green) */
+
+
+        .output-section {
+            margin-top: 2.5rem;
+            padding: 2rem;
+            background-color: color-mix(in srgb, var(--color-bg-light) 90%, var(--color-bg-deep));
+            border-radius: 0.75rem;
+            border: 1px solid var(--color-accent-primary-glow);
+            box-shadow: 0 0 15px color-mix(in srgb, var(--color-accent-primary-glow) 20%, transparent), inset 0 0 25px rgba(0,0,0,0.4);
+        }
+        .output-section h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--color-accent-secondary-glow);
+            margin-bottom: 1.2rem;
+            text-shadow: var(--glow-secondary-medium);
+            border-bottom: 1px solid color-mix(in srgb, var(--color-accent-secondary-glow) 30%, transparent);
+            padding-bottom: 0.6rem;
+        }
+        .output-value, .output-value-multi {
+            font-size: 1.6rem; 
+            font-weight: 700;
+            color: var(--color-accent-primary-glow);
+            text-shadow: var(--glow-primary-medium);
+            line-height: 1.7; 
+            margin-bottom: 0.75rem;
+            padding: 0; /* Reset V1 padding */
+        }
+        .output-value-multi br {
+            content: "";
+            display: block;
+            margin-bottom: 0.4em; 
+        }
+        .output-time, .output-datetime {
+            font-size: 0.9rem;
+            color: var(--color-text-secondary);
+             margin-top: 0.5rem; /* Ensure consistency with V1 */
+        }
+        .output-datetime span.output-value {  /* V2.3 uses .output-datetime .output-value */
+             font-size: 1.1rem; 
+             font-weight: 600;
+             color: var(--color-accent-secondary-glow);
+             text-shadow: var(--glow-secondary-subtle);
+        }
+
+        .error-message {
+            color: var(--color-error);
+            font-size: 0.8rem; /* V2.3 is 0.8rem, V1 is 0.85rem. Use 0.85rem for better visibility. */
+            font-size: 0.85rem;
+            margin-top: 0.4rem; 
+            text-shadow: 0 0 6px var(--color-error);
+            min-height: 1.2em; 
+             font-weight: 500; /* from V1 */
+        }
+
+        .optional-section, .residual-section-container, .volume-concentration-section-container {
+            margin-top: 2.5rem;
+            padding-top: 2rem;
+            border-top: 1px dashed color-mix(in srgb, var(--color-accent-tertiary-glow) 40%, transparent);
+        }
+        .optional-section h2.text-xl { /* V2.3 .optional-section h2, V1 .optional-section h2.text-xl */
+             font-size: 1.4rem;
+             font-weight: 600;
+             color: var(--color-text-headings);
+             text-shadow: 0 0 5px var(--glow-tertiary-subtle);
+             margin-bottom: 1.5rem;
+             border-bottom: none; /* V2.3 has no border here, V1 has. For radioactive, remove V1 border. */
+             padding-bottom: 0;
+        }
+        .collapsible-inputs-section { 
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background-color: color-mix(in srgb, var(--color-bg-light) 85%, var(--color-bg-medium));
+            border-radius: 0.5rem;
+            border: 1px solid color-mix(in srgb, var(--color-accent-secondary-glow) 25%, transparent);
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.35);
+        }
+         .collapsible-inputs-section h3.text-lg { /* V2.3 .collapsible-inputs-section h3, V1 same with text-lg */
+            font-size: 1.1rem; /* V1 font-size: 1.1rem, V2.3 font-size: 1.1rem */
+            font-weight: 600;
+            margin-bottom: 1.2rem;
+            color: var(--color-accent-secondary-glow);
+            text-shadow: var(--glow-secondary-subtle);
+            border-bottom: 1px solid color-mix(in srgb, var(--color-accent-secondary-glow) 20%, transparent);
+            padding-bottom: 0.5rem;
+        }
+        
+        #messageBox {
+            background-color: var(--color-bg-light);
+            border: 1px solid; 
+            border-radius: 0.5rem; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.6);
+            padding: 1rem 1.5rem; 
+            font-size: 0.95rem; /* From V1 */
+        }
+        #messageBox strong {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+        #messageBox.bg-red-100 {
+            background-color: color-mix(in srgb, var(--color-error) 15%, var(--color-bg-light)) !important;
+            border-color: var(--color-error) !important;
+            color: var(--color-text-primary) !important; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.6), var(--glow-error);
+        }
+        #messageBox.bg-red-100 strong {
+            color: var(--color-error) !important; 
+        }
+        #messageBox.bg-red-100 #closeMessageButton svg {
+            fill: var(--color-error) !important;
+        }
+
+        #messageBox.bg-blue-100 { 
+            background-color: color-mix(in srgb, var(--color-info) 15%, var(--color-bg-light)) !important;
+            border-color: var(--color-info) !important;
+            color: var(--color-text-primary) !important;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.6), var(--glow-info);
+        }
+        #messageBox.bg-blue-100 strong {
+            color: var(--color-info) !important;
+        }
+        #messageBox.bg-blue-100 #closeMessageButton svg {
+            fill: var(--color-info) !important;
+        }
+
+        #closeMessageButton svg {
+            transition: transform 0.2s ease, fill 0.2s ease;
+        }
+        #closeMessageButton:hover svg {
+            transform: scale(1.2);
+            fill: var(--color-text-headings) !important; 
+        }
+        /* --- END OF Half-Life_V2.3.html CSS --- */
+    </style>
+</head>
+<body class="theme-clean"> <!-- Default theme -->
+
+    <button id="theme-switcher-button" aria-label="Open theme settings" title="Change theme">⚙️</button>
+    <div id="theme-switcher-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="theme-modal-title">
+        <h2 id="theme-modal-title">Select Design</h2>
+        <button data-theme="clean" class="theme-option-button">Clean design</button>
+        <button data-theme="radioactive" class="theme-option-button">Radioactive design</button>
+        <button id="close-theme-modal-button" aria-label="Close theme settings">Close</button>
+    </div>
+
+    <div class="container">
+        <div id="dot-background-canvas"></div>
+        <div class="content-wrapper">
+            <!-- Common HTML Content from <div class="container"> children -->
+            <h1 class="text-3xl font-bold text-center mt-0 mb-8 text-gray-800">Half-Life</h1>
+            <h2 class="-mt-2 text-xl font-medium text-center mb-5 text-gray-600">Radioactive Decay Calculator</h2>
+
+            <div class="input-group">
+                <label for="initialActivity">Initial Activity:</label>
+                <div class="activity-input-container">
+                    <div class="activity-input-wrapper">
+                        <input type="number" id="initialActivity" step="any" placeholder="Enter value">
+                        <p id="initialActivityError" class="error-message"></p>
+                        <div id="initialActivityConversion" class="conversion-display"></div>
+                    </div>
+                    <div class="unit-selector-wrapper">
+                        <label for="initialActivityUnit" class="unit-label">Unit (Optional):</label>
+                        <select id="initialActivityUnit" class="unit-select">
+                            </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="isotopeSelect">Select Isotope (Optional):</label>
+                <select id="isotopeSelect">
+                    <option value="">-- Custom Half-life --</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="input-group">
+                    <label for="halfLifeValue">Half-life Value:</label>
+                    <input type="number" id="halfLifeValue" step="any" placeholder="Enter or select isotope">
+                    <p id="halfLifeValueError" class="error-message"></p>
+                </div>
+                <div class="input-group">
+                    <label for="halfLifeUnit">Half-life Unit:</label>
+                    <select id="halfLifeUnit">
+                        <option value="seconds">Seconds</option>
+                        <option value="minutes">Minutes</option>
+                        <option value="hours">Hours</option>
+                        <option value="days" selected>Days</option>
+                        <option value="years">Years</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="initialDateTime">Date and Time of Initial Activity (HH:MM:SS if browser supports):</label>
+                <input type="datetime-local" id="initialDateTime" step="1">
+                <p id="initialDateTimeError" class="error-message"></p>
+            </div>
+
+            <div class="residual-section-container">
+                <button id="toggleResidualButton" class="button button-small bg-gray-500 hover:bg-gray-600">Consider Residual Activity</button>
+                <div id="residualInputsSection" class="collapsible-inputs-section hidden mt-4">
+                    <h3 class="text-lg font-medium text-gray-700 mb-3">Residual Activity Details</h3>
+                    <div class="input-group">
+                        <label for="residualActivityValue">Residual Activity Value:</label>
+                        <div class="activity-input-container">
+                            <div class="activity-input-wrapper">
+                                <input type="number" id="residualActivityValue" step="any" placeholder="Enter value">
+                                <p id="residualActivityValueError" class="error-message"></p>
+                                <div id="residualActivityConversion" class="conversion-display"></div>
+                            </div>
+                            <div id="residualActivityUnitDisplay" class="inherited-unit-display"></div>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="residualMeasurementTime">Residual Measurement Date/Time (HH:MM:SS if browser supports):</label>
+                        <input type="datetime-local" id="residualMeasurementTime" step="1">
+                        <p id="residualMeasurementTimeError" class="error-message"></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="volume-concentration-section-container">
+                <button id="toggleVolumeButton" class="button button-small bg-gray-500 hover:bg-gray-600">Consider Concentration/Partial Volume</button>
+                <div id="volumeInputsSection" class="collapsible-inputs-section hidden mt-4">
+                    <h3 class="text-lg font-medium text-gray-700 mb-3">Volume & Concentration Details</h3>
+                    <div class="input-group">
+                        <label for="totalVolume">Total Volume (mL):</label>
+                        <input type="number" id="totalVolume" step="any" placeholder="Enter total volume">
+                        <p id="totalVolumeError" class="error-message"></p>
+                    </div>
+                    <div class="input-group hidden" id="partialVolumeGroup">
+                        <label for="partialVolume">Partial Volume (mL) (Optional):</label>
+                        <input type="number" id="partialVolume" step="any" placeholder="Enter partial volume">
+                        <p id="partialVolumeError" class="error-message"></p>
+                    </div>
+                </div>
+            </div>
+
+
+            <button id="calculateButton" class="button mt-8">Calculate Current Activity</button>
+
+            <div id="currentActivitySection" class="output-section mt-6 hidden">
+                <h3>Current Activity</h3>
+                <div id="currentActivityValue" class="output-value-multi"></div>
+                <p class="output-time">Calculated at: <span id="currentCalculationTime"></span></p>
+            </div>
+
+            <div class="optional-section mt-8">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Optional: Calculate Activity at a Specific Time</h2>
+                <div class="input-group">
+                    <label for="specificDateTime">Specific Date and Time (HH:MM:SS if browser supports):</label>
+                    <input type="datetime-local" id="specificDateTime" step="1">
+                    <p id="specificDateTimeError" class="error-message"></p>
+                </div>
+                <button id="calculateSpecificButton" class="button mt-2 bg-indigo-400 hover:bg-indigo-500">Calculate for Specific Time</button>
+
+                <div id="specificActivitySection" class="output-section mt-4 hidden">
+                    <h3>Activity at Specified Time</h3>
+                    <div id="specificActivityValue" class="output-value-multi"></div>
+                    <p class="output-time">For date: <span id="specificCalculationTime"></span></p>
+                </div>
+            </div>
+
+            <div class="optional-section mt-8">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Optional: Calculate Time to Reach Target Activity</h2>
+                <div class="input-group">
+                    <label for="targetActivityValue">Target Activity Value:</label>
+                    <div class="activity-input-container">
+                        <div class="activity-input-wrapper">
+                            <input type="number" id="targetActivityValue" step="any" placeholder="Enter value">
+                            <p id="targetActivityError" class="error-message"></p>
+                            <div id="targetActivityConversion" class="conversion-display"></div>
+                        </div>
+                        <div id="targetActivityUnitDisplay" class="inherited-unit-display"></div>
+                    </div>
+                </div>
+                <button id="calculateTimeToTargetButton" class="button mt-2 bg-teal-500 hover:bg-teal-600">Calculate Time to Reach Target</button>
+
+                <div id="timeToTargetSection" class="output-section mt-4 hidden">
+                    <h3>Time to Reach Target Activity</h3>
+                    <p class="output-datetime">Estimated Date and Time: <span id="timeToTargetDateTime" class="output-value"></span></p>
+                    <p class="output-time">Relative to initial/residual measurement: <span id="timeToTargetRelative"></span></p>
+                </div>
+            </div>
+
+            <div id="messageBox" class="fixed top-5 right-5 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md shadow-lg hidden z-50" role="alert">
+                <strong class="font-bold">Error!</strong>
+                <span class="block sm:inline" id="messageText">Something went wrong.</span>
+                <span class="absolute top-0 bottom-0 right-0 px-4 py-3">
+                    <svg id="closeMessageButton" class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
+                </span>
+            </div>
+            <!-- End of Common HTML Content -->
+        </div> <!-- End of content-wrapper -->
+    </div> <!-- End of container -->
+
+    <script id="calculator-script">
+        // --- START OF COMMON CALCULATOR SCRIPT ---
+        // --- DOM Elements ---
+        const initialActivityEl = document.getElementById('initialActivity');
+        const initialActivityUnitEl = document.getElementById('initialActivityUnit');
+        const initialActivityConversionEl = document.getElementById('initialActivityConversion');
+        const isotopeSelectEl = document.getElementById('isotopeSelect');
+        const halfLifeValueEl = document.getElementById('halfLifeValue');
+        const halfLifeUnitEl = document.getElementById('halfLifeUnit');
+        const initialDateTimeEl = document.getElementById('initialDateTime');
+        const calculateButton = document.getElementById('calculateButton');
+
+        const currentActivitySection = document.getElementById('currentActivitySection');
+        const currentActivityValueEl = document.getElementById('currentActivityValue');
+        const currentCalculationTimeEl = document.getElementById('currentCalculationTime');
+
+        const specificDateTimeEl = document.getElementById('specificDateTime');
+        const calculateSpecificButton = document.getElementById('calculateSpecificButton');
+        const specificActivitySection = document.getElementById('specificActivitySection');
+        const specificActivityValueEl = document.getElementById('specificActivityValue');
+        const specificCalculationTimeEl = document.getElementById('specificCalculationTime');
+
+        const targetActivityValueEl = document.getElementById('targetActivityValue');
+        const targetActivityUnitDisplayEl = document.getElementById('targetActivityUnitDisplay'); 
+        const targetActivityConversionEl = document.getElementById('targetActivityConversion');
+        const calculateTimeToTargetButton = document.getElementById('calculateTimeToTargetButton');
+        const timeToTargetSection = document.getElementById('timeToTargetSection');
+        const timeToTargetDateTimeEl = document.getElementById('timeToTargetDateTime');
+        const timeToTargetRelativeEl = document.getElementById('timeToTargetRelative');
+        
+        const toggleResidualButton = document.getElementById('toggleResidualButton');
+        const residualInputsSectionEl = document.getElementById('residualInputsSection');
+        const residualActivityValueEl = document.getElementById('residualActivityValue');
+        const residualActivityUnitDisplayEl = document.getElementById('residualActivityUnitDisplay'); 
+        const residualActivityConversionEl = document.getElementById('residualActivityConversion');
+        const residualMeasurementTimeEl = document.getElementById('residualMeasurementTime');
+        
+        // Volume/Concentration DOM Elements
+        const toggleVolumeButton = document.getElementById('toggleVolumeButton');
+        const volumeInputsSectionEl = document.getElementById('volumeInputsSection');
+        const totalVolumeEl = document.getElementById('totalVolume');
+        const partialVolumeGroupEl = document.getElementById('partialVolumeGroup');
+        const partialVolumeEl = document.getElementById('partialVolume');
+        const totalVolumeErrorEl = document.getElementById('totalVolumeError');
+        const partialVolumeErrorEl = document.getElementById('partialVolumeError');
+
+
+        const initialActivityErrorEl = document.getElementById('initialActivityError');
+        const halfLifeValueErrorEl = document.getElementById('halfLifeValueError');
+        const initialDateTimeErrorEl = document.getElementById('initialDateTimeError');
+        const specificDateTimeErrorEl = document.getElementById('specificDateTimeError');
+        const targetActivityErrorEl = document.getElementById('targetActivityError');
+        const residualActivityValueErrorEl = document.getElementById('residualActivityValueError');
+        const residualMeasurementTimeErrorEl = document.getElementById('residualMeasurementTimeError');
+
+
+        const messageBoxEl = document.getElementById('messageBox');
+        const messageTextEl = document.getElementById('messageText');
+        const closeMessageButton = document.getElementById('closeMessageButton');
+
+        // --- Unit Data and Conversion Constants ---
+        const BQ_TO_CI = 2.7027027e-11;
+        const BQ_TO_RD = 1e-6;
+        const CI_TO_BQ = 3.7e10;
+        const RD_TO_BQ = 1e6;
+
+        const allUnitPrefixes = {
+            'G': { value: 1e9, name: 'Giga' }, 'M': { value: 1e6, name: 'Mega' }, 'k': { value: 1e3, name: 'kilo' },
+            '':  { value: 1,   name: '' },     'm': { value: 1e-3, name: 'milli' },'µ': { value: 1e-6, name: 'micro' },
+            'n': { value: 1e-9, name: 'nano' }, 'p': { value: 1e-12, name: 'pico' }
+        };
+        const baseUnits = ['Bq', 'Ci', 'Rd'];
+        const specificUnitStringsForDropdown = ["Bq", "kBq", "MBq", "GBq", "nCi", "µCi", "mCi", "Ci", "Rd"];
+
+        // --- Isotope Data ---
+		// List of isotopes sorted by frequency of use in nuclear medicine or radiotherapy.
+		// Half-life values are in seconds.
+		// The 'symbol' format aims to match the example provided: SYMBOL-MASSNUMBER, with M1 for common metastable states.
+		const commonIsotopes = [
+			{ name: "Technetium-99m (Tc-99m)", symbol: "TC-99M1", halfLifeSec: 21620.88 }, { name: "Fluorine-18 (F-18)", symbol: "F-18", halfLifeSec: 6586.26 }, { name: "Iodine-131 (I-131)", symbol: "I-131", halfLifeSec: 692898.48 }, { name: "Iodine-123 (I-123)", symbol: "I-123", halfLifeSec: 47604.6 }, { name: "Iridium-192 (Ir-192)", symbol: "IR-192", halfLifeSec: 6378396.8 }, { name: "Iodine-125 (I-125)", symbol: "I-125", halfLifeSec: 5133052.8 }, { name: "Gallium-68 (Ga-68)", symbol: "GA-68", halfLifeSec: 4062.6 }, { name: "Lutetium-177 (Lu-177)", symbol: "LU-177", halfLifeSec: 574356 }, { name: "Yttrium-90 (Y-90)", symbol: "Y-90", halfLifeSec: 230590.8 }, { name: "Indium-111 (In-111)", symbol: "IN-111", halfLifeSec: 242328.48 }, { name: "Radium-223 (Ra-223)", symbol: "RA-223", halfLifeSec: 987552 }, { name: "Cobalt-60 (Co-60)", symbol: "CO-60", halfLifeSec: 166342174.7 }, { name: "Thallium-201 (Tl-201)", symbol: "TL-201", halfLifeSec: 262483.2 }, { name: "Gallium-67 (Ga-67)", symbol: "GA-67", halfLifeSec: 281810.88 }, { name: "Rubidium-82 (Rb-82)", symbol: "RB-82", halfLifeSec: 76.38 }, { name: "Cesium-137 (Cs-137)", symbol: "CS-137", halfLifeSec: 949171073.0 }, { name: "Samarium-153 (Sm-153)", symbol: "SM-153", halfLifeSec: 166622.4 }, { name: "Strontium-89 (Sr-89)", symbol: "SR-89", halfLifeSec: 4365792 }, { name: "Carbon-11 (C-11)", symbol: "C-11", halfLifeSec: 1221.84 }, { name: "Nitrogen-13 (N-13)", symbol: "N-13", halfLifeSec: 597.9 }, { name: "Oxygen-15 (O-15)", symbol: "O-15", halfLifeSec: 122.24 }, { name: "Xenon-133 (Xe-133)", symbol: "XE-133", halfLifeSec: 453384 }, { name: "Krypton-81m (Kr-81m)", symbol: "KR-81M1", halfLifeSec: 13.10 }, { name: "Zirconium-89 (Zr-89)", symbol: "ZR-89", halfLifeSec: 282276 }, { name: "Iodine-124 (I-124)", symbol: "I-124", halfLifeSec: 360806.4 }, { name: "Copper-64 (Cu-64)", symbol: "CU-64", halfLifeSec: 45720 }, { name: "Rhenium-188 (Re-188)", symbol: "RE-188", halfLifeSec: 61214.4 }, { name: "Rhenium-186 (Re-186)", symbol: "RE-186", halfLifeSec: 321282.24 }, { name: "Phosphorus-32 (P-32)", symbol: "P-32", halfLifeSec: 1232755.2 }, { name: "Actinium-225 (Ac-225)", symbol: "AC-225", halfLifeSec: 857088 }, { name: "Holmium-166 (Ho-166)", symbol: "HO-166", halfLifeSec: 96580.8 }, { name: "Astatine-211 (At-211)", symbol: "AT-211", halfLifeSec: 25970.4 }, { name: "Copper-67 (Cu-67)", symbol: "CU-67", halfLifeSec: 222588 }, { name: "Bismuth-213 (Bi-213)", symbol: "BI-213", halfLifeSec: 2735.4 }, { name: "Lead-212 (Pb-212)", symbol: "PB-212", halfLifeSec: 38304 }, { name: "Thorium-227 (Th-227)", symbol: "TH-227", halfLifeSec: 1613952 }, { name: "Chromium-51 (Cr-51)", symbol: "CR-51", halfLifeSec: 2393435.52 }, { name: "Molybdenum-99 (Mo-99)", symbol: "MO-99", halfLifeSec: 237513.6 }, { name: "Germanium-68 (Ge-68)", symbol: "GE-68", halfLifeSec: 23410080 }, { name: "Strontium-82 (Sr-82)", symbol: "SR-82", halfLifeSec: 2191104 }, { name: "Tungsten-188 (W-188)", symbol: "W-188", halfLifeSec: 6028512 }
+		]; 
+
+        function populateIsotopeDropdown() {
+            commonIsotopes.forEach(iso => {
+                const option = document.createElement('option');
+                option.value = iso.symbol;
+                option.textContent = iso.name;
+                isotopeSelectEl.appendChild(option);
+            });
+        }
+        
+        function populateUnitDropdown(selectEl, defaultUnitValue = "") { 
+            const noUnitOption = document.createElement('option');
+            noUnitOption.value = "";
+            noUnitOption.textContent = "-- No Unit --";
+            selectEl.appendChild(noUnitOption);
+
+            specificUnitStringsForDropdown.forEach(unitString => {
+                const option = document.createElement('option');
+                option.value = unitString;
+                option.textContent = unitString;
+                selectEl.appendChild(option);
+            });
+            selectEl.value = defaultUnitValue; 
+        }
+
+        function initializeUnitDropdowns() {
+            populateUnitDropdown(initialActivityUnitEl, ""); 
+        }
+
+        populateIsotopeDropdown();
+        initializeUnitDropdowns();
+
+        // --- Utility Functions ---
+        function showMessage(message, type = 'error') {
+            messageTextEl.textContent = message;
+            messageBoxEl.classList.remove('hidden');
+            // Tailwind classes are added/removed by specific theme CSS, 
+            // but we ensure JS logic sets the correct base for error/info for V1 logic that used Tailwind classes directly on messageBox.
+            // V2.3 CSS overrides these with its own color system.
+            messageBoxEl.classList.remove('bg-blue-100', 'border-blue-400', 'text-blue-700', 'bg-red-100', 'border-red-400', 'text-red-700');
+            if (type === 'error') {
+                messageBoxEl.classList.add('bg-red-100'); // V1 uses border-red-400, text-red-700
+                messageBoxEl.querySelector('strong').textContent = 'Error!';
+            } else { 
+                messageBoxEl.classList.add('bg-blue-100'); // V1 uses border-blue-400, text-blue-700
+                messageBoxEl.querySelector('strong').textContent = type === 'success' ? 'Success:' : 'Info:';
+            }
+        }
+
+        closeMessageButton.addEventListener('click', () => {
+            messageBoxEl.classList.add('hidden');
+        });
+
+        function getUnitParts(unitString) {
+            if (!unitString) return null;
+            for (const prefix in allUnitPrefixes) { 
+                if (unitString.startsWith(prefix) && (prefix === '' || unitString !== prefix) ) { 
+                    const base = unitString.substring(prefix.length);
+                    if (baseUnits.includes(base)) {
+                        return { prefix: prefix, base: base, multiplier: allUnitPrefixes[prefix].value };
+                    }
+                }
+            }
+            return null; 
+        }
+
+        function convertToBq(value, unitString) {
+            if (isNaN(value)) return null;
+            if (!unitString) return value; 
+
+            const parts = getUnitParts(unitString);
+            if (!parts) return null; 
+            
+            let valueInBase = value * parts.multiplier;
+            if (parts.base === 'Ci') return valueInBase * CI_TO_BQ;
+            if (parts.base === 'Rd') return valueInBase * RD_TO_BQ;
+            return valueInBase; 
+        }
+        
+        function formatActivityForDisplay(valueInBq, targetBaseUnit) {
+            if (valueInBq === null || isNaN(valueInBq)) return "N/A";
+
+            let valueInTargetBase;
+            if (targetBaseUnit === 'Ci') valueInTargetBase = valueInBq * BQ_TO_CI;
+            else if (targetBaseUnit === 'Rd') valueInTargetBase = valueInBq * BQ_TO_RD;
+            else valueInTargetBase = valueInBq; 
+
+            if (Math.abs(valueInTargetBase) < 1e-20 && valueInTargetBase !== 0) { 
+                return `0.000 ${targetBaseUnit}`;
+            }
+            if (valueInTargetBase === 0) return `0.000 ${targetBaseUnit}`;
+
+            const prefixesToTry = Object.entries(allUnitPrefixes)
+                                     .sort((a, b) => b[1].value - a[1].value); 
+
+            for (const [prefixSymbol, prefixData] of prefixesToTry) {
+                const scaledValue = valueInTargetBase / prefixData.value;
+                if (Math.abs(scaledValue) >= 1 && Math.abs(scaledValue) < 1000) {
+                    return `${scaledValue.toFixed(3)} ${prefixSymbol}${targetBaseUnit}`;
+                }
+            }
+            
+            for (const [prefixSymbol, prefixData] of prefixesToTry) {
+                const scaledValue = valueInTargetBase / prefixData.value;
+                if (Math.abs(scaledValue) >= 0.001 && Math.abs(scaledValue) < 1000) { 
+                     return `${scaledValue.toFixed(3)} ${prefixSymbol}${targetBaseUnit}`;
+                }
+            }
+            return `${valueInTargetBase.toExponential(3)} ${targetBaseUnit}`;
+        }
+
+        function convertHalfLifeToSeconds(value, unit) {
+            if (value <= 0) return null;
+            switch (unit) {
+                case 'seconds': return value;
+                case 'minutes': return value * 60;
+                case 'hours':   return value * 3600;
+                case 'days':    return value * 86400;
+                case 'years':   return value * 31536000; 
+                default:        return null;
+            }
+        }
+
+        function convertSecondsToBestUnit(totalSeconds, forDisplay = true) {
+            if (totalSeconds === null ) return null; 
+
+            const absTotalSeconds = Math.abs(totalSeconds);
+            const sign = totalSeconds < 0 ? "-" : "";
+
+            if (absTotalSeconds === 0 && forDisplay) return { value: 0, unit: 'seconds', text: '0 seconds' };
+            if (absTotalSeconds < 0.001 && forDisplay && absTotalSeconds !== 0) return { value: totalSeconds, unit: 'seconds', text: `${sign}${absTotalSeconds.toExponential(2)} seconds (practically zero)`};
+
+            const secondsInYear = 31536000; 
+            const secondsInDay = 86400;
+            const secondsInHour = 3600;
+            const secondsInMinute = 60;
+
+            let value, unit, text;
+
+            if (absTotalSeconds >= secondsInYear) {
+                value = totalSeconds / secondsInYear;
+                unit = 'years';
+            } else if (absTotalSeconds >= secondsInDay) {
+                value = totalSeconds / secondsInDay;
+                unit = 'days';
+            } else if (absTotalSeconds >= secondsInHour) {
+                value = totalSeconds / secondsInHour;
+                unit = 'hours';
+            } else if (absTotalSeconds >= secondsInMinute) {
+                value = totalSeconds / secondsInMinute;
+                unit = 'minutes';
+            } else {
+                value = totalSeconds;
+                unit = 'seconds';
+            }
+            
+            text = `${value.toFixed(3)} ${unit}`;
+            if (forDisplay) return { value: value, unit: unit, text: text};
+            return { value: value, unit: unit}; 
+        }
+
+        function calculateDecay(initialActivityInBq, halfLifeInSeconds, elapsedTimeInSeconds) {
+            if (initialActivityInBq < 0 || halfLifeInSeconds <= 0) { 
+                return null;
+            }
+            if (initialActivityInBq === 0) return 0; 
+            const decayFactor = elapsedTimeInSeconds / halfLifeInSeconds;
+            return initialActivityInBq * Math.pow(0.5, decayFactor);
+        }
+
+        function validateBaseInputs(forTimeCalc = false) {
+            let isValid = true;
+            initialActivityErrorEl.textContent = '';
+            halfLifeValueErrorEl.textContent = '';
+            initialDateTimeErrorEl.textContent = '';
+
+            const initialActivityNum = parseFloat(initialActivityEl.value);
+            if (initialActivityEl.value === '' || isNaN(initialActivityNum) || initialActivityNum < 0) { 
+                initialActivityErrorEl.textContent = 'Enter valid non-negative initial activity.';
+                isValid = false;
+            }
+            if (forTimeCalc && initialActivityNum <= 0 && initialActivityUnitEl.value !== "") { 
+                 initialActivityErrorEl.textContent = 'Initial activity must be > 0 for time-to-target when units are selected.';
+                 isValid = false;
+            }
+
+            if (!halfLifeValueEl.disabled && (halfLifeValueEl.value === '' || isNaN(parseFloat(halfLifeValueEl.value)) || parseFloat(halfLifeValueEl.value) <= 0)) {
+                halfLifeValueErrorEl.textContent = 'Enter valid positive half-life or select isotope.';
+                isValid = false;
+            }
+            if (initialDateTimeEl.value === '') { 
+                initialDateTimeErrorEl.textContent = 'Select initial date and time.';
+                isValid = false;
+            } else {
+                const tempDate = new Date(initialDateTimeEl.value);
+                if (isNaN(tempDate.getTime())) {
+                    initialDateTimeErrorEl.textContent = 'Initial date/time is invalid.';
+                    isValid = false;
+                }
+            }
+            return isValid;
+        }
+
+        function validateResidualInputs() {
+            let isValid = true;
+            residualActivityValueErrorEl.textContent = '';
+            residualMeasurementTimeErrorEl.textContent = '';
+
+            if (residualActivityValueEl.value !== "" && (isNaN(parseFloat(residualActivityValueEl.value)) || parseFloat(residualActivityValueEl.value) < 0)) {
+                residualActivityValueErrorEl.textContent = 'Enter valid non-negative residual activity.';
+                isValid = false;
+            }
+            
+            if (residualMeasurementTimeEl.value === '') {
+                residualMeasurementTimeErrorEl.textContent = 'Select residual measurement date/time.';
+                isValid = false;
+            } else {
+                const tempDate = new Date(residualMeasurementTimeEl.value);
+                if (isNaN(tempDate.getTime())) {
+                    residualMeasurementTimeErrorEl.textContent = 'Residual date/time is invalid.';
+                    isValid = false;
+                }
+            }
+            return isValid;
+        }
+
+        function validateVolumeInputs() {
+            let isValid = true;
+            totalVolumeErrorEl.textContent = '';
+            partialVolumeErrorEl.textContent = '';
+
+            const totalVolume = parseFloat(totalVolumeEl.value);
+            if (totalVolumeEl.value !== "" && (isNaN(totalVolume) || totalVolume <= 0)) {
+                totalVolumeErrorEl.textContent = 'Total volume must be a positive number.';
+                isValid = false;
+            }
+
+            const partialVolume = parseFloat(partialVolumeEl.value);
+            if (partialVolumeEl.value !== "") {
+                if (isNaN(partialVolume) || partialVolume <= 0) {
+                    partialVolumeErrorEl.textContent = 'Partial volume must be a positive number.';
+                    isValid = false;
+                } else if (totalVolumeEl.value !== "" && !isNaN(totalVolume) && totalVolume > 0 && partialVolume > totalVolume) {
+                    partialVolumeErrorEl.textContent = 'Partial volume cannot exceed total volume.';
+                    isValid = false;
+                }
+            }
+            return isValid;
+        }
+
+        function validateSpecificDateTimeInput() {
+            specificDateTimeErrorEl.textContent = '';
+            if (specificDateTimeEl.value === '') {
+                specificDateTimeErrorEl.textContent = 'Select specific date/time.';
+                return false;
+            } else {
+                 const tempDate = new Date(specificDateTimeEl.value);
+                if (isNaN(tempDate.getTime())) {
+                    specificDateTimeErrorEl.textContent = 'Specific date/time is invalid.';
+                    return false;
+                }
+            }
+            return true;
+        }
+
+         function validateTargetActivityInput() {
+            targetActivityErrorEl.textContent = '';
+            const targetActivity = parseFloat(targetActivityValueEl.value);
+            if (targetActivityValueEl.value === '' || isNaN(targetActivity) || targetActivity <= 0) {
+                targetActivityErrorEl.textContent = 'Enter valid positive target activity.';
+                return false;
+            }
+            return true;
+        }
+
+        function formatDateTime(dateObj) {
+            if (!dateObj || isNaN(dateObj.getTime())) {
+                return "Invalid Date";
+            }
+            return dateObj.toLocaleString([], {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+            });
+        }
+
+        toggleResidualButton.addEventListener('click', () => {
+            residualInputsSectionEl.classList.toggle('hidden');
+            const isHidden = residualInputsSectionEl.classList.contains('hidden');
+            toggleResidualButton.textContent = isHidden ? 'Consider Residual Activity' : 'Ignore Residual Activity';
+            // Tailwind classes 'bg-red-500', 'hover:bg-red-600', 'bg-gray-500', 'hover:bg-gray-600' will be managed by the active theme's CSS
+            // For JS to toggle, we'd need to add/remove them directly or use a more abstract state class.
+            // The existing V1/V2.3 JS did not change these button color classes here, relying on initial HTML state + CSS.
+            // However, V1 CSS has specific !important overrides for these classes.
+            // To ensure visual feedback matches the state, explicitly set these classes.
+            if (isHidden) {
+                toggleResidualButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                toggleResidualButton.classList.add('bg-gray-500', 'hover:bg-gray-600');
+                residualActivityValueErrorEl.textContent = '';
+                residualMeasurementTimeErrorEl.textContent = '';
+            } else {
+                toggleResidualButton.classList.remove('bg-gray-500', 'hover:bg-gray-600');
+                toggleResidualButton.classList.add('bg-red-500', 'hover:bg-red-600');
+            }
+        });
+        
+        toggleVolumeButton.addEventListener('click', () => {
+            volumeInputsSectionEl.classList.toggle('hidden');
+            const isHidden = volumeInputsSectionEl.classList.contains('hidden');
+            toggleVolumeButton.textContent = isHidden ? 'Consider Concentration/Partial Volume' : 'Ignore Volume Calculations';
+             if (isHidden) {
+                toggleVolumeButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                toggleVolumeButton.classList.add('bg-gray-500', 'hover:bg-gray-600'); 
+                totalVolumeErrorEl.textContent = '';
+                partialVolumeErrorEl.textContent = '';
+                partialVolumeGroupEl.classList.add('hidden'); 
+            } else {
+                toggleVolumeButton.classList.remove('bg-gray-500', 'hover:bg-gray-600');
+                toggleVolumeButton.classList.add('bg-red-500', 'hover:bg-red-600');
+                if (parseFloat(totalVolumeEl.value) > 0) {
+                    partialVolumeGroupEl.classList.remove('hidden');
+                }
+            }
+        });
+
+        totalVolumeEl.addEventListener('input', () => {
+            const totalVolumeValue = parseFloat(totalVolumeEl.value);
+            if (!isNaN(totalVolumeValue) && totalVolumeValue > 0 && !volumeInputsSectionEl.classList.contains('hidden')) {
+                partialVolumeGroupEl.classList.remove('hidden');
+            } else {
+                partialVolumeGroupEl.classList.add('hidden');
+                partialVolumeEl.value = ''; 
+                partialVolumeErrorEl.textContent = '';
+            }
+        });
+
+        isotopeSelectEl.addEventListener('change', (event) => {
+            const selectedIsotopeSymbol = event.target.value;
+            halfLifeValueErrorEl.textContent = ''; 
+
+            if (selectedIsotopeSymbol) {
+                const selectedIsotopeData = commonIsotopes.find(iso => iso.symbol === selectedIsotopeSymbol);
+
+                if (selectedIsotopeData && selectedIsotopeData.halfLifeSec > 0) {
+                    const bestUnitData = convertSecondsToBestUnit(selectedIsotopeData.halfLifeSec, false); 
+                    if (bestUnitData) {
+                        halfLifeValueEl.value = bestUnitData.value.toPrecision(5);
+                        halfLifeUnitEl.value = bestUnitData.unit;
+                        halfLifeValueEl.disabled = true;
+                        halfLifeUnitEl.disabled = true;
+                        showMessage(`Half-life for ${selectedIsotopeData.name} loaded.`, 'success');
+                    } else {
+                        showMessage(`Could not convert half-life for ${selectedIsotopeData.name}. Please enter manually.`, 'error');
+                        halfLifeValueEl.disabled = false;
+                        halfLifeUnitEl.disabled = false;
+                    }
+                } else if (selectedIsotopeData && (!selectedIsotopeData.halfLifeSec || selectedIsotopeData.halfLifeSec <= 0)) {
+                     showMessage(`${selectedIsotopeData.name} is stable or its half-life is not applicable for decay. Please enter manually.`, 'info');
+                    halfLifeValueEl.value = '';
+                    halfLifeValueEl.disabled = false;
+                    halfLifeUnitEl.disabled = false;
+                }
+                else {
+                    showMessage(`Data for ${selectedIsotopeSymbol} not found. Please enter manually.`, 'error');
+                    halfLifeValueEl.disabled = false;
+                    halfLifeUnitEl.disabled = false;
+                }
+            } else {
+                halfLifeValueEl.value = '';
+                halfLifeUnitEl.value = 'days'; 
+                halfLifeValueEl.disabled = false;
+                halfLifeUnitEl.disabled = false;
+                messageBoxEl.classList.add('hidden'); 
+            }
+        });
+
+        function updateInheritedUnitDisplays() {
+            const selectedInitialUnit = initialActivityUnitEl.value;
+            residualActivityUnitDisplayEl.textContent = selectedInitialUnit || ""; 
+            targetActivityUnitDisplayEl.textContent = selectedInitialUnit || "";
+
+            handleActivityInputChange(initialActivityEl, initialActivityUnitEl, initialActivityConversionEl);
+            handleActivityInputChange(residualActivityValueEl, initialActivityUnitEl, residualActivityConversionEl, true);
+            handleActivityInputChange(targetActivityValueEl, initialActivityUnitEl, targetActivityConversionEl, true);
+        }
+
+        function handleActivityInputChange(valueEl, unitSourceEl, conversionEl, isInherited = false) {
+            const activityValue = parseFloat(valueEl.value);
+            const unitString = unitSourceEl.value; 
+            
+            conversionEl.innerHTML = ''; 
+
+            if (!isNaN(activityValue) && unitString) { 
+                const valueInBq = convertToBq(activityValue, unitString);
+                if (valueInBq !== null) {
+                    let conversionText = "";
+                    const currentBaseUnit = getUnitParts(unitString)?.base;
+                    baseUnits.forEach(targetBase => {
+                        if (targetBase !== currentBaseUnit) {
+                             // V2.3 uses &nbsp;=&nbsp;, V1 uses =
+                            conversionText += (conversionText ? "<br>" : "") + (document.body.classList.contains('theme-radioactive') ? "&nbsp;=&nbsp;" : "&nbsp;=&nbsp;") + `${formatActivityForDisplay(valueInBq, targetBase)}`;
+                        }
+                    });
+                    conversionEl.innerHTML = conversionText;
+                }
+            }
+        }
+        
+        initialActivityEl.addEventListener('input', () => handleActivityInputChange(initialActivityEl, initialActivityUnitEl, initialActivityConversionEl));
+        initialActivityUnitEl.addEventListener('change', () => {
+            updateInheritedUnitDisplays(); 
+        });
+        residualActivityValueEl.addEventListener('input', () => handleActivityInputChange(residualActivityValueEl, initialActivityUnitEl, residualActivityConversionEl, true));
+        targetActivityValueEl.addEventListener('input', () => handleActivityInputChange(targetActivityValueEl, initialActivityUnitEl, targetActivityConversionEl, true));
+
+        function getEffectiveInitialValues(forTimeCalc = false) { 
+            if (!validateBaseInputs(forTimeCalc)) return null; 
+
+            let initialActivityNum = parseFloat(initialActivityEl.value);
+            const initialUnit = initialActivityUnitEl.value;
+            let initialActivityInBq = convertToBq(initialActivityNum, initialUnit); 
+            
+            if (initialUnit && initialActivityInBq === null) { 
+                initialActivityErrorEl.textContent = 'Invalid initial activity unit.';
+                return null;
+            }
+
+            let initialDateTime = new Date(initialDateTimeEl.value); 
+            if (isNaN(initialDateTime.getTime())) { 
+                initialDateTimeErrorEl.textContent = 'Initial date/time is invalid.';
+                return null;
+            }
+            
+            const halfLifeValue = parseFloat(halfLifeValueEl.value);
+            const halfLifeUnit = halfLifeUnitEl.value;
+            const halfLifeInSeconds = convertHalfLifeToSeconds(halfLifeValue, halfLifeUnit);
+
+            if (halfLifeInSeconds === null) {
+                showMessage('Invalid half-life. Ensure positive value.', 'error');
+                return null;
+            }
+
+            let effectiveInitialActivityInBq = initialActivityInBq;
+            let effectiveInitialDateTime = initialDateTime;
+            let anyUnitSelected = !!initialUnit;
+
+            if (!residualInputsSectionEl.classList.contains('hidden') && residualActivityValueEl.value !== "") {
+                if (!validateResidualInputs()) return null; 
+
+                const residualActivityNum = parseFloat(residualActivityValueEl.value);
+                let residualActivityInBq = convertToBq(residualActivityNum, initialUnit); 
+                
+                if (initialUnit !== "" && residualActivityInBq === null) { 
+                    residualActivityValueErrorEl.textContent = 'Invalid residual activity for selected unit.';
+                    return null;
+                }
+                
+                const residualDateTime = new Date(residualMeasurementTimeEl.value); 
+                if (isNaN(residualDateTime.getTime())) {
+                     residualMeasurementTimeErrorEl.textContent = 'Residual date/time is invalid.';
+                     return null;
+                }
+
+                if (residualDateTime.getTime() < initialDateTime.getTime()) {
+                    showMessage('Residual time cannot be before initial time.', 'error');
+                    residualMeasurementTimeErrorEl.textContent = 'Cannot be before initial.';
+                    return null;
+                }
+
+                const elapsedTimeForResidualDecay_ms = residualDateTime.getTime() - initialDateTime.getTime();
+                const initialActivityAtResidualTimeBq = calculateDecay(initialActivityInBq, halfLifeInSeconds, elapsedTimeForResidualDecay_ms / 1000);
+
+                if (initialActivityAtResidualTimeBq === null) {
+                     showMessage('Could not calculate activity at residual time.', 'error');
+                     return null;
+                }
+                if (residualActivityInBq > initialActivityAtResidualTimeBq) {
+                    showMessage('Residual activity > calculated activity at residual time.', 'error');
+                    residualActivityValueErrorEl.textContent = 'Too high for decay.';
+                    return null;
+                }
+
+                effectiveInitialActivityInBq = initialActivityAtResidualTimeBq - residualActivityInBq;
+                effectiveInitialDateTime = residualDateTime;
+                
+                if (effectiveInitialActivityInBq < 0) { 
+                     showMessage('Effective injected activity is negative.', 'error');
+                     return null;
+                }
+            }
+            if (forTimeCalc && targetActivityValueEl.value !== "" && initialActivityUnitEl.value !== "") {
+                anyUnitSelected = true;
+            }
+            return { effectiveInitialActivityInBq, effectiveInitialDateTime, halfLifeInSeconds, anyUnitSelected };
+        }
+
+        function performCalculation(outputValueEl, outputTimeEl, targetDateTime) {
+            const effectiveValues = getEffectiveInitialValues();
+            if (!effectiveValues) {
+                outputValueEl.closest('.output-section').classList.add('hidden');
+                return;
+            }
+            
+            const { effectiveInitialActivityInBq, effectiveInitialDateTime, halfLifeInSeconds, anyUnitSelected } = effectiveValues;
+            const calculationTime = targetDateTime || new Date(); 
+            const elapsedTimeInSeconds = (calculationTime.getTime() - effectiveInitialDateTime.getTime()) / 1000;
+            const calculatedActivityInBq = calculateDecay(effectiveInitialActivityInBq, halfLifeInSeconds, elapsedTimeInSeconds);
+
+            if (calculatedActivityInBq === null || isNaN(calculatedActivityInBq)) {
+                showMessage('Could not calculate activity.', 'error');
+                outputValueEl.closest('.output-section').classList.add('hidden');
+            } else {
+                let outputHTML = "";
+                // V2.3 indents with &nbsp;&nbsp;, V1 with &nbsp;&nbsp;
+                const indent = "&nbsp;&nbsp;"; // Use consistent indent for multi-line output
+
+                if (anyUnitSelected) {
+                    outputHTML += `Activity:<br>
+                                   ${indent}${formatActivityForDisplay(calculatedActivityInBq, 'Bq')}<br>
+                                   ${indent}${formatActivityForDisplay(calculatedActivityInBq, 'Ci')}<br>
+                                   ${indent}${formatActivityForDisplay(calculatedActivityInBq, 'Rd')}`;
+                } else {
+                    outputHTML += `Activity: ${calculatedActivityInBq.toFixed(3)}`;
+                }
+
+                if (!volumeInputsSectionEl.classList.contains('hidden') && totalVolumeEl.value !== "") {
+                    if (!validateVolumeInputs()) { 
+                         outputValueEl.closest('.output-section').classList.add('hidden'); 
+                         return; 
+                    }
+                    const totalVolume = parseFloat(totalVolumeEl.value);
+                    if (!isNaN(totalVolume) && totalVolume > 0) {
+                        const concentrationInBqPerMl = calculatedActivityInBq / totalVolume;
+                        if (anyUnitSelected) {
+                            outputHTML += `<br><br>Concentration:<br>
+                                           ${indent}${formatActivityForDisplay(concentrationInBqPerMl, 'Bq')}/mL<br>
+                                           ${indent}${formatActivityForDisplay(concentrationInBqPerMl, 'Ci')}/mL<br>
+                                           ${indent}${formatActivityForDisplay(concentrationInBqPerMl, 'Rd')}/mL`;
+                        } else {
+                            outputHTML += `<br><br>Concentration: ${concentrationInBqPerMl.toFixed(3)} Activity/mL`;
+                        }
+
+                        const partialVolume = parseFloat(partialVolumeEl.value);
+                        if (partialVolumeEl.value !== "" && !isNaN(partialVolume) && partialVolume > 0 && partialVolume <= totalVolume) {
+                            const partialVolumeActivityInBq = concentrationInBqPerMl * partialVolume;
+                             if (anyUnitSelected) {
+                                outputHTML += `<br><br>Activity in Partial Volume (${partialVolume.toFixed(2)} mL):<br>
+                                               ${indent}${formatActivityForDisplay(partialVolumeActivityInBq, 'Bq')}<br>
+                                               ${indent}${formatActivityForDisplay(partialVolumeActivityInBq, 'Ci')}<br>
+                                               ${indent}${formatActivityForDisplay(partialVolumeActivityInBq, 'Rd')}`;
+                            } else {
+                                outputHTML += `<br><br>Activity in Partial Volume (${partialVolume.toFixed(2)} mL): ${partialVolumeActivityInBq.toFixed(3)}`;
+                            }
+                        }
+                    }
+                }
+                outputValueEl.innerHTML = outputHTML;
+                if (outputTimeEl) outputTimeEl.textContent = formatDateTime(calculationTime);
+                outputValueEl.closest('.output-section').classList.remove('hidden');
+                if (!messageTextEl.textContent.includes("loaded.")) { 
+                    messageBoxEl.classList.add('hidden');
+                }
+            }
+        }
+
+        calculateButton.addEventListener('click', () => {
+            specificDateTimeErrorEl.textContent = ''; targetActivityErrorEl.textContent = '';
+            residualActivityValueErrorEl.textContent = ''; residualMeasurementTimeErrorEl.textContent = '';
+            totalVolumeErrorEl.textContent = ''; partialVolumeErrorEl.textContent = '';
+            performCalculation(currentActivityValueEl, currentCalculationTimeEl, null);
+        });
+
+        calculateSpecificButton.addEventListener('click', () => {
+            targetActivityErrorEl.textContent = ''; residualActivityValueErrorEl.textContent = '';
+            residualMeasurementTimeErrorEl.textContent = ''; totalVolumeErrorEl.textContent = '';
+            partialVolumeErrorEl.textContent = '';
+
+            if (!validateSpecificDateTimeInput()) { 
+                 showMessage('Select valid specific date/time.', 'error');
+                 specificActivitySection.classList.add('hidden'); return;
+            }
+            const specificDateTime = new Date(specificDateTimeEl.value);
+            if (isNaN(specificDateTime.getTime())) {
+                 specificDateTimeErrorEl.textContent = 'Specific date/time is invalid.';
+                 specificActivitySection.classList.add('hidden'); return;
+            }
+            performCalculation(specificActivityValueEl, specificCalculationTimeEl, specificDateTime);
+        });
+
+        calculateTimeToTargetButton.addEventListener('click', () => {
+            specificDateTimeErrorEl.textContent = ''; residualActivityValueErrorEl.textContent = '';
+            residualMeasurementTimeErrorEl.textContent = ''; totalVolumeErrorEl.textContent = '';
+            partialVolumeErrorEl.textContent = '';
+
+            if (!validateTargetActivityInput()) { 
+                timeToTargetSection.classList.add('hidden'); return;
+            }
+            
+            const effectiveValues = getEffectiveInitialValues(true); 
+            if (!effectiveValues) {
+                timeToTargetSection.classList.add('hidden'); return;
+            }
+
+            const { effectiveInitialActivityInBq, effectiveInitialDateTime, halfLifeInSeconds } = effectiveValues;
+            
+            const targetActivityNum = parseFloat(targetActivityValueEl.value);
+            const initialUnitForTarget = initialActivityUnitEl.value; 
+            const targetActivityInBq = convertToBq(targetActivityNum, initialUnitForTarget);
+
+            if (initialUnitForTarget !== "" && targetActivityInBq === null) { 
+                targetActivityErrorEl.textContent = 'Invalid target activity based on initial unit.';
+                timeToTargetSection.classList.add('hidden'); return;
+            }
+            
+            if (effectiveInitialActivityInBq <= 0 && targetActivityInBq > 0) {
+                 showMessage('Effective initial activity is zero or less; cannot reach a positive target.', 'error');
+                 timeToTargetSection.classList.add('hidden'); return;
+            }
+             if (effectiveInitialActivityInBq > 0 && targetActivityInBq <= 0) { 
+                 showMessage('Target activity must be > 0.', 'error');
+                 timeToTargetSection.classList.add('hidden'); return;
+            }
+             if (effectiveInitialActivityInBq === 0 && targetActivityInBq === 0) {
+                 showMessage('Effective initial and target activities are both zero. Time is undefined.', 'info');
+                 timeToTargetDateTimeEl.textContent = "N/A";
+                 timeToTargetRelativeEl.textContent = "N/A";
+                 timeToTargetSection.classList.remove('hidden'); return;
+            }
+
+            const ratio = targetActivityInBq / effectiveInitialActivityInBq;
+            if (ratio <= 0 || isNaN(ratio)) { 
+                 showMessage('Ratio of target to effective initial activity invalid for log.', 'error');
+                 timeToTargetSection.classList.add('hidden'); return;
+            }
+            if (Math.abs(effectiveInitialActivityInBq - targetActivityInBq) < 1e-9) { 
+                timeToTargetDateTimeEl.textContent = formatDateTime(effectiveInitialDateTime);
+                timeToTargetRelativeEl.textContent = "0 seconds (already at target)";
+                timeToTargetSection.classList.remove('hidden');
+                if (!messageTextEl.textContent.includes("loaded.")) { messageBoxEl.classList.add('hidden'); }
+                return;
+            }
+
+            const logRatio = Math.log(ratio);
+            const logHalf = Math.log(0.5); 
+
+            if (logHalf === 0) { 
+                 showMessage('Log(0.5) is zero, cannot divide.', 'error'); 
+                 timeToTargetSection.classList.add('hidden'); return;
+            }
+            
+            const elapsedTimeInSeconds = halfLifeInSeconds * (logRatio / logHalf);
+
+            if (isNaN(elapsedTimeInSeconds)) {
+                 showMessage('Calculation resulted in NaN time. Check inputs.', 'error');
+                 timeToTargetSection.classList.add('hidden'); return;
+            }
+
+            const targetTimestamp = effectiveInitialDateTime.getTime() + (elapsedTimeInSeconds * 1000);
+            const targetDate = new Date(targetTimestamp);
+
+            timeToTargetDateTimeEl.textContent = formatDateTime(targetDate);
+            const relativeTimeData = convertSecondsToBestUnit(elapsedTimeInSeconds, true);
+            timeToTargetRelativeEl.textContent = relativeTimeData.text + (elapsedTimeInSeconds < 0 ? " ago" : " from effective start");
+            
+            timeToTargetSection.classList.remove('hidden');
+            if (!messageTextEl.textContent.includes("loaded.")) {
+                messageBoxEl.classList.add('hidden');
+            }
+        });
+        updateInheritedUnitDisplays();
+        // --- END OF COMMON CALCULATOR SCRIPT ---
+    </script>
+
+    <script id="dot-animation-script">
+        // --- START OF DOT ANIMATION SCRIPT (from V2.3, modified) ---
+        let isDotAnimationInitialized = false;
+
+        function initDotAnimation() {
+            // Check if already initialized or if the specific canvas for dots is not present
+            const dotCanvas = document.getElementById('dot-background-canvas');
+            if (isDotAnimationInitialized || !dotCanvas) return;
+
+            dotCanvas.innerHTML = ''; // Clear previous dots
+
+            // Ensure canvas is visible for this theme
+            dotCanvas.style.display = 'block'; // Or 'initial', or remove inline style if CSS handles it
+
+            const containerRect = dotCanvas.parentElement.getBoundingClientRect();
+            const area = containerRect.width * containerRect.height;
+            const numberOfDots = Math.min(200, Math.max(50, Math.floor(area / 7000))); 
+
+            for (let i = 0; i < numberOfDots; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'dot'; // 'dot' class is styled by radioactive theme CSS
+                dot.style.top = Math.random() * 100 + '%';
+                dot.style.left = Math.random() * 100 + '%';
+                dot.style.animationDelay = (Math.random() * 4) + 's';
+                dot.style.animationDuration = (2.5 + Math.random() * 2) + 's';
+                dotCanvas.appendChild(dot);
+            }
+            isDotAnimationInitialized = true;
+        }
+
+        function destroyDotAnimation() {
+            const dotCanvas = document.getElementById('dot-background-canvas');
+            if (dotCanvas) {
+                dotCanvas.innerHTML = ''; // Remove all dot elements
+                dotCanvas.style.display = 'none'; // Ensure canvas is hidden
+            }
+            isDotAnimationInitialized = false;
+        }
+        // --- END OF DOT ANIMATION SCRIPT ---
+    </script>
+
+    <script id="theme-switcher-logic">
+        // --- START OF THEME SWITCHER SCRIPT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeSwitcherButton = document.getElementById('theme-switcher-button');
+            const themeSwitcherModal = document.getElementById('theme-switcher-modal');
+            const closeThemeModalButton = document.getElementById('close-theme-modal-button');
+            const themeOptionButtons = document.querySelectorAll('.theme-option-button');
+
+            const cleanStyles = document.getElementById('theme-clean-styles');
+            const radioactiveStyles = document.getElementById('theme-radioactive-styles');
+            const dotCanvas = document.getElementById('dot-background-canvas'); // Used to explicitly show/hide
+
+            function applyTheme(themeName) {
+                document.body.classList.remove('theme-clean', 'theme-radioactive');
+                document.body.classList.add(`theme-${themeName}`);
+
+                if (themeName === 'clean') {
+                    cleanStyles.disabled = false;
+                    radioactiveStyles.disabled = true;
+                    if (typeof destroyDotAnimation === 'function') {
+                        destroyDotAnimation(); // This will also hide dotCanvas
+                    }
+                } else if (themeName === 'radioactive') {
+                    cleanStyles.disabled = true;
+                    radioactiveStyles.disabled = false;
+                    if (dotCanvas) dotCanvas.style.display = 'block'; // Ensure canvas is ready
+                    if (typeof initDotAnimation === 'function') {
+                        initDotAnimation();
+                    }
+                }
+                localStorage.setItem('selectedTheme', themeName);
+
+                themeOptionButtons.forEach(btn => {
+                    btn.classList.toggle('active-theme', btn.dataset.theme === themeName);
+                });
+                
+                // Trigger re-evaluation of inherited unit display for correct conversion display format if needed
+                if (typeof updateInheritedUnitDisplays === 'function') {
+                    updateInheritedUnitDisplays();
+                }
+            }
+
+            themeSwitcherButton.addEventListener('click', (event) => {
+                event.stopPropagation(); // Prevent click from bubbling to document listener immediately
+                themeSwitcherModal.classList.toggle('hidden');
+                if (!themeSwitcherModal.classList.contains('hidden')) {
+                    themeSwitcherModal.setAttribute('aria-hidden', 'false');
+                    themeSwitcherModal.querySelector('.theme-option-button[data-theme="' + (localStorage.getItem('selectedTheme') || 'clean') + '"]').focus();
+                } else {
+                     themeSwitcherModal.setAttribute('aria-hidden', 'true');
+                }
+            });
+
+            closeThemeModalButton.addEventListener('click', () => {
+                themeSwitcherModal.classList.add('hidden');
+                themeSwitcherModal.setAttribute('aria-hidden', 'true');
+                themeSwitcherButton.focus();
+            });
+
+            themeOptionButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    applyTheme(button.dataset.theme);
+                    // Optional: close modal after selection, decide based on UX preference
+                    // themeSwitcherModal.classList.add('hidden');
+                    // themeSwitcherModal.setAttribute('aria-hidden', 'true');
+                    // themeSwitcherButton.focus();
+                });
+            });
+            
+            document.addEventListener('click', (event) => {
+                if (!themeSwitcherModal.classList.contains('hidden') && 
+                    !themeSwitcherModal.contains(event.target) && 
+                    event.target !== themeSwitcherButton ) { // Check if click is outside modal AND not on the gear button
+                    themeSwitcherModal.classList.add('hidden');
+                    themeSwitcherModal.setAttribute('aria-hidden', 'true');
+                }
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && !themeSwitcherModal.classList.contains('hidden')) {
+                    themeSwitcherModal.classList.add('hidden');
+                    themeSwitcherModal.setAttribute('aria-hidden', 'true');
+                    themeSwitcherButton.focus();
+                }
+            });
+
+            const savedTheme = localStorage.getItem('selectedTheme') || 'clean';
+            applyTheme(savedTheme);
+            themeSwitcherModal.setAttribute('aria-hidden', 'true'); // Initially hidden
+        });
+        // --- END OF THEME SWITCHER SCRIPT ---
+    </script>
+</body>
+</html>
