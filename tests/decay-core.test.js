@@ -215,14 +215,30 @@ test('Format.dateTime uses a 24-hour clock and survives out-of-range dates', () 
     assert.match(Format.dateTime(new Date(8.64e15 + 1)), /outside/);
 });
 
-test('isotope table: unique symbols, positive half-lives, known reference values', () => {
+test('isotope table: unique symbols, positive half-lives, a source for every value', () => {
     assert.equal(new Set(ISOTOPES.map((i) => i.symbol)).size, ISOTOPES.length);
     for (const isotope of ISOTOPES) {
         assert.ok(isotope.halfLifeSec > 0, isotope.symbol);
+        assert.ok(isotope.reference, `${isotope.symbol} has no reference`);
     }
-    // Spot checks against NNDC (relative tolerance 0.1%).
-    close(findIsotope('F-18').halfLifeSec / 60, 109.77, 1e-3);
-    close(findIsotope('TC-99M1').halfLifeSec / HOUR, 6.007, 1e-3);
-    close(findIsotope('CO-60').halfLifeSec / TIME_UNITS.years, 5.2714, 1e-3);
     assert.equal(findIsotope('XX-1'), null);
+});
+
+test('isotope table: the value used equals the ENSDF value shown to the user', () => {
+    const secondsPer = { s: 1, min: 60, h: HOUR, d: DAY, y: TIME_UNITS.years };
+    for (const { symbol, ensdf, halfLifeSec } of ISOTOPES) {
+        const match = /^([\d.]+)(?: ± [\d.]+)? (s|min|h|d|y)$/.exec(ensdf);
+        assert.ok(match, `${symbol}: unexpected ENSDF text "${ensdf}"`);
+        close(Number(match[1]) * secondsPer[match[2]], halfLifeSec, 1e-12);
+    }
+});
+
+test('isotope table: ENSDF adopted values (NNDC, checked 2026-11-13)', () => {
+    // Includes the values that were outdated before this check.
+    close(findIsotope('RB-82').halfLifeSec / 60, 1.2575);       // was 1.273 min (+1.2%)
+    close(findIsotope('I-131').halfLifeSec / DAY, 8.0252);      // was 8.0197 d
+    close(findIsotope('MO-99').halfLifeSec / HOUR, 65.924);     // was 65.976 h
+    close(findIsotope('TC-99M1').halfLifeSec / HOUR, 6.0072);   // was 6.0058 h
+    close(findIsotope('F-18').halfLifeSec / 60, 109.77);
+    close(findIsotope('CO-60').halfLifeSec / DAY, 1925.28);
 });

@@ -115,7 +115,15 @@ With a residual measurement, the injected activity is the initial activity decay
 
 ## Scientific References
 
-The half-life values used in this calculator are sourced from the [National Nuclear Data Center (NNDC)](https://www.nndc.bnl.gov/nudat3/), a reliable repository for nuclear data.
+The half-life values used in this calculator are the ENSDF adopted (evaluated) values published by the [National Nuclear Data Center (NNDC)](https://www.nndc.bnl.gov/nudat3/) — the "Adopted Levels" dataset of each nuclide. `js/isotopes.js` lists, for every isotope, the evaluated value with its uncertainty and the Nuclear Data Sheets reference it comes from; the calculator shows this when an isotope is selected.
+
+The table was last checked against NNDC on 2026-11-13 (all 41 values match). To re-check it after new evaluations are published (needs network access to www.nndc.bnl.gov):
+
+```bash
+npm run verify-isotopes
+```
+
+Note that the summary data behind the NuDat 3 interactive chart differs from the ENSDF adopted values for several isotopes (for example Cs-137: 30.007 y vs 30.08 y; Ga-68: 67.843 min vs 67.71 min). This calculator follows the ENSDF adopted values, which are the formally evaluated and published ones.
 
 ## Technologies Used
 

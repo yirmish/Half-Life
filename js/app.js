@@ -79,7 +79,8 @@
                 const { value, unit } = toBestTimeUnit(isotope.halfLifeSec);
                 this.valueInput.value = String(Number(value.toPrecision(5)));
                 this.unitSelect.value = unit;
-                this.hint.textContent = `Half-life of ${isotope.name} from the NNDC table. ` +
+                this.hint.textContent = `${isotope.name}: T½ = ${isotope.ensdf} ` +
+                    `(ENSDF evaluated value via NNDC; ${isotope.reference}). ` +
                     'Choose “Custom Half-life” to enter your own value.';
             }
             // Switching back to "Custom" keeps the value, so it can be adjusted rather than retyped.
