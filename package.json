@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "verify-isotopes": "node scripts/verify-isotopes.js"
+    "verify-isotopes": "node scripts/verify-isotopes.js",
+    "stamp": "node scripts/stamp-assets.js"
   },
   "engines": {
     "node": ">=18"

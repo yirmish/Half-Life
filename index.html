@@ -20,14 +20,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/base.css?v=f1d332ccef">
+    <link rel="stylesheet" href="css/themes.css?v=9e942ded4b">
 
-    <script defer src="js/decay-core.js"></script>
-    <script defer src="js/isotopes.js"></script>
-    <script defer src="js/ui-components.js"></script>
-    <script defer src="js/theme.js"></script>
-    <script defer src="js/app.js"></script>
+    <script defer src="js/decay-core.js?v=a67b53ebb1"></script>
+    <script defer src="js/isotopes.js?v=72f2e3d8a9"></script>
+    <script defer src="js/ui-components.js?v=ac1105722d"></script>
+    <script defer src="js/theme.js?v=c3746600e2"></script>
+    <script defer src="js/app.js?v=e5f7444e27"></script>
 </head>
 <body>
     <!-- Theme switcher -->
@@ -234,7 +234,13 @@
             <!-- Dose drawing: volume that holds a desired activity at administration -->
             <section class="optional-section" data-enter-action="calculateDoseButton">
                 <h2>Optional: Volume to Draw for a Desired Dose</h2>
-                <p class="section-note">Uses the vial’s total volume from “Consider Concentration/Partial Volume”.</p>
+                <p class="section-note">The vial’s activity is the initial activity above, with its date, time and half-life.</p>
+                <div class="input-group">
+                    <label for="doseVialVolume">Vial Total Volume (mL):</label>
+                    <input type="number" id="doseVialVolume" step="any" min="0" placeholder="Enter total volume"
+                           aria-describedby="doseVialVolumeError">
+                    <p id="doseVialVolumeError" class="error-message" aria-live="polite"></p>
+                </div>
                 <div class="input-group">
                     <label for="desiredActivityValue">Desired Activity at Administration:</label>
                     <div class="input-with-unit">
@@ -442,6 +448,20 @@
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
         </button>
     </div>
+
+    <div id="startupError" class="startup-error" role="alert" hidden>
+        <strong>The calculator did not start.</strong>
+        Reload the page (Ctrl+Shift+R, or Cmd+Shift+R on a Mac). If this keeps happening,
+        open it in an up-to-date Chrome, Edge, Firefox or Safari.
+    </div>
+    <script>
+        // If the scripts failed to load or start (an outdated cached copy, an old
+        // browser), say so instead of showing a page whose buttons do nothing.
+        window.addEventListener('load', function () {
+            if (window.HalfLife && window.HalfLife.app) return;
+            document.getElementById('startupError').hidden = false;
+        });
+    </script>
 
     <noscript>
         <p class="noscript-warning">This calculator needs JavaScript to run.</p>

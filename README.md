@@ -8,7 +8,7 @@ This project provides an intuitive, user-friendly HTML calculator designed to co
 * **Intuitive User Interface:** Clear, responsive, and easy-to-use layout.
 * **Flexible Inputs:** Enter the initial quantity, half-life value, and elapsed time.
 * **Unit Selection:** Supports Bq (up to TBq), Ci and Rd, with automatic conversions. Results are shown first in the unit you chose, then in the other units.
-* **A Unit for Every Activity Field:** The residual, target and desired activities each have their own unit menu (e.g. initial activity in MBq, residual measured in µCi). They follow the initial unit until you pick another one; under each field the value is also shown in the initial unit.
+* **A Unit for Every Activity Field:** The residual, target and desired activities each have their own unit menu (e.g. initial activity in MBq, residual measured in µCi). They follow the initial unit until you pick another one; under each field the value is also shown in the initial unit. A value without a unit cannot be mixed with one in Bq or Ci; the page says so under the field.
 * **Live Results:** Once you calculate a result it stays up to date: changing any input recalculates it, and "Current Activity" refreshes every second.
 * **Predefined Isotopes:** Includes a comprehensive list of common isotopes used in nuclear medicine, selectable via a dropdown (with each half-life shown).
 * **Custom Half-Life Input:** Allows entering custom half-life values and selecting corresponding time units.
@@ -60,7 +60,7 @@ This project provides an intuitive, user-friendly HTML calculator designed to co
 
 8. **Draw a Dose (Optional):**
 
-   * Enter the vial's total volume (step 6), then the desired activity and the administration time. The calculator gives the volume to draw and the expected dose-calibrator reading now.
+   * The vial is described by the initial activity (step 2–4). Enter the vial's total volume, the desired activity and the administration time; the calculator gives the volume to draw and the expected dose-calibrator reading now.
 
 9. **Decay Table (Optional):**
 
@@ -112,6 +112,14 @@ The calculation core runs in Node as well as in the browser. With Node 18 or new
 
 ```bash
 npm test
+```
+
+## Changing CSS or JavaScript
+
+`index.html` loads each CSS/JS file with a content hash (`js/app.js?v=…`), so browsers never combine a new page with an old cached script. After editing any of those files, update the hashes (`npm test` fails until you do):
+
+```bash
+npm run stamp
 ```
 
 ## Formula and Scientific Background
