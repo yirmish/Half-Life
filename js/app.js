@@ -13,9 +13,9 @@
     const {
         InputError, ActivityUnit, DecayModel, Measurement, Vial, DecayScenario, Format,
         ParentDaughterModel, Generator,
-        BASE_UNITS, SELECTABLE_ACTIVITY_UNITS, timeToSeconds, toBestTimeUnit, toDateTimeLocalValue,
-        ISOTOPES, findIsotope,
-        createElement, Field, FormReader, MessageBox, ToggleSection, ResultPanel,
+        BASE_UNITS, SELECTABLE_ACTIVITY_UNITS, TIME_UNITS, timeToSeconds, toBestTimeUnit, toDateTimeLocalValue,
+        ISOTOPES, findIsotope, sourceUrl, MO99_DECAY_DATA_URL,
+        createElement, renderMath, mathToText, Field, FormReader, MessageBox, ToggleSection, ResultPanel,
         DotField, ThemeManager,
     } = root.HalfLife;
 
@@ -72,6 +72,17 @@
     /** How often results that depend on the current time are refreshed. */
     const LIVE_UPDATE_INTERVAL_MS = 1000;
 
+    const TIME_ABBREVIATIONS = Object.freeze({ seconds: 's', minutes: 'min', hours: 'h', days: 'd', years: 'y' });
+
+    /** A link to a data source, opened in a new tab. */
+    function createSourceLink(url, text) {
+        const link = createElement('a', 'source-link', text);
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        return link;
+    }
+
     /* ================================================================== */
     /* Inputs with behaviour of their own                                  */
     /* ================================================================== */
@@ -102,13 +113,34 @@
             return value === null ? null : timeToSeconds(value, this.unitSelect.value);
         }
 
-        /** One line for copied results, e.g. "Fluorine-18 (F-18), T½ = 109.77 ± 0.05 min (ENSDF via NNDC)". */
-        describe() {
+        /** Where the half-life comes from: { label, text, url }, or null for a custom value. */
+        get source() {
             const isotope = this.selectedIsotope;
-            const abbreviations = { seconds: 's', minutes: 'min', hours: 'h', days: 'd', years: 'y' };
             return isotope
-                ? `${isotope.name}, T½ = ${isotope.ensdf} (ENSDF via NNDC)`
-                : `custom, T½ = ${this.valueInput.value.trim()} ${abbreviations[this.unitSelect.value]}`;
+                ? { label: `${isotope.name} half-life`, text: 'ENSDF via NNDC', url: sourceUrl(isotope.symbol) }
+                : null;
+        }
+
+        /** E.g. "Fluorine-18 (F-18), T½ = 109.77 ± 0.05 min"; the source is added by the caller. */
+        describeValue() {
+            const isotope = this.selectedIsotope;
+            return isotope
+                ? `${isotope.name}, T½ = ${isotope.ensdf}`
+                : `custom, T½ = ${this.valueInput.value.trim()} ${TIME_ABBREVIATIONS[this.unitSelect.value]}`;
+        }
+
+        /** One line for copied results, e.g. "Fluorine-18 (F-18), T½ = 109.77 ± 0.05 min (ENSDF via NNDC: https://…)". */
+        describe() {
+            const source = this.source;
+            return source ? `${this.describeValue()} (${source.text}: ${source.url})` : this.describeValue();
+        }
+
+        /** The same as page content, with the source as a link. */
+        describeNodes() {
+            const source = this.source;
+            return source
+                ? [`${this.describeValue()} (`, createSourceLink(source.url, source.text), ')']
+                : [this.describeValue()];
         }
 
         #populateIsotopes() {
@@ -127,9 +159,11 @@
                 const { value, unit } = toBestTimeUnit(isotope.halfLifeSec);
                 this.valueInput.value = String(Number(value.toPrecision(5)));
                 this.unitSelect.value = unit;
-                this.hint.textContent = `${isotope.name}: T½ = ${isotope.ensdf} ` +
-                    `(ENSDF evaluated value via NNDC; ${isotope.reference}). ` +
-                    'Choose “Custom Half-life” to enter your own value.';
+                this.hint.replaceChildren(
+                    `${isotope.name}: T½ = ${isotope.ensdf} (`,
+                    createSourceLink(sourceUrl(isotope.symbol), 'ENSDF evaluated value via NNDC'),
+                    `; ${isotope.reference}). Choose “Custom Half-life” to enter your own value.`,
+                );
             }
             // Switching back to "Custom" keeps the value, so it can be adjusted rather than retyped.
             this.valueInput.disabled = Boolean(isotope);
@@ -300,6 +334,56 @@
         (scenario.usesResidual ? 'residual measurement' : 'initial measurement');
 
     const perMlSuffix = (unit) => (unit.isUnitless ? ' per mL' : '/mL');
+
+    /* ---------- Equations under the results ---------- */
+
+    /** "-5.000" -> "−5.000": a real minus sign in equations. */
+    const withMinus = (text) => text.replace(/^-/, '−');
+
+    /** A duration in `unit`, e.g. "5.000 h". */
+    const durationIn = (seconds, unit) =>
+        `${withMinus(Format.number(seconds / TIME_UNITS[unit]))} ${TIME_ABBREVIATIONS[unit]}`;
+
+    /** A half-life with enough digits to redo the calculation by hand, e.g. "6.0072 h". */
+    const halfLifeIn = (seconds, unit) =>
+        `${Number((seconds / TIME_UNITS[unit]).toPrecision(6))} ${TIME_ABBREVIATIONS[unit]}`;
+
+    /** "(½)^{Δt / T½}" with values, both times in the half-life's unit (or `unit`). */
+    function decayTerm(elapsedSeconds, halfLifeSeconds, unit = toBestTimeUnit(halfLifeSeconds).unit) {
+        return `(½)^{${durationIn(elapsedSeconds, unit)} / ${halfLifeIn(halfLifeSeconds, unit)}}`;
+    }
+
+    /** Names of the reference point: the initial measurement, or the injected activity at the residual time. */
+    const referenceSymbols = (scenario) =>
+        (scenario.usesResidual ? { A: 'A_{inj}', t: 't_{r}' } : { A: 'A_{0}', t: 't_{0}' });
+
+    /** A(t) (and concentration, partial-volume activity) with the values used. */
+    function activityEquations(result, scenario, unit) {
+        const act = (bq) => Format.activityIn(bq, unit);
+        const halfLife = scenario.model.halfLifeSeconds;
+        const perMl = perMlSuffix(unit);
+        const lines = [];
+
+        if (scenario.usesResidual) {
+            const { initial, residual, reference } = scenario;
+            lines.push(`A_{inj} = A_{0} · (½)^{(t_{r} − t_{0}) / T_{½}} − A_{r} = ${act(initial.activity)} · ` +
+                `${decayTerm(initial.secondsUntil(residual.time), halfLife)} − ${act(residual.activity)} = ${act(reference.activity)}`);
+            lines.push(`A(t) = A_{inj} · (½)^{(t − t_{r}) / T_{½}} = ${act(reference.activity)} · ` +
+                `${decayTerm(result.elapsedSeconds, halfLife)} = ${act(result.activity)}`);
+        } else {
+            lines.push(`A(t) = A_{0} · (½)^{(t − t_{0}) / T_{½}} = ${act(scenario.initial.activity)} · ` +
+                `${decayTerm(result.elapsedSeconds, halfLife)} = ${act(result.activity)}`);
+        }
+        if (result.concentration !== null) {
+            lines.push(`C = A(t) / V = ${act(result.activity)} / ${Format.number(scenario.vial.totalMl)} mL = ` +
+                `${act(result.concentration)}${perMl}`);
+        }
+        if (result.drawnActivity !== null) {
+            lines.push(`A_{v} = C · v = ${act(result.concentration)}${perMl} · ${Format.number(scenario.vial.drawnMl)} mL = ` +
+                `${act(result.drawnActivity)}`);
+        }
+        return lines;
+    }
     const pastNote = (time) => (time.getTime() < Date.now() ? ' (in the past)' : '');
 
     /* ================================================================== */
@@ -321,6 +405,37 @@
         constructor(panelElement) {
             this.panel = new ResultPanel(panelElement);
             this.summary = [];
+            this.formulaText = [];
+        }
+
+        /**
+         * Shows the equations behind the result, small, at the bottom of its panel.
+         * `sources` ({ label, text, url }) are listed under them as links.
+         */
+        renderFormula(lines, sources = []) {
+            this.formulaText = [
+                ...lines.map(mathToText),
+                ...sources.map(({ label, text, url }) => `Source — ${label}: ${text} (${url})`),
+            ];
+            const slot = this.panel.slot('formula');
+            if (!slot) return;
+
+            const rows = lines.map((line) => {
+                const row = createElement('div', 'formula__line');
+                row.append(renderMath(line));
+                return row;
+            });
+            const children = [createElement('div', 'formula__title', lines.length > 1 ? 'Equations' : 'Equation'), ...rows];
+            if (sources.length > 0) {
+                const list = createElement('div', 'formula__sources', sources.length > 1 ? 'Sources: ' : 'Source: ');
+                sources.forEach(({ label, text, url }, index) => {
+                    if (index > 0) list.append('; ');
+                    list.append(`${label} — `, createSourceLink(url, text));
+                });
+                children.push(list);
+            }
+            slot.replaceChildren(...children);
+            slot.hidden = lines.length === 0;
         }
 
         /** Extra inputs beyond the shared ones (initial activity, half-life, ...). */
@@ -365,7 +480,8 @@
             return Format.dateTime(result.time);
         }
 
-        render(result, { scenario, unit }) {
+        render(result, { scenario, unit, source }) {
+            this.renderFormula(activityEquations(result, scenario, unit), source ? [source] : []);
             const groups = [
                 ['Activity', result.activity, ''],
                 result.concentration !== null && ['Concentration', result.concentration, perMlSuffix(unit)],
@@ -449,7 +565,18 @@
             return scenario.timeToReach(targetActivity);
         }
 
-        render({ time, elapsedSeconds, halfLives }, { scenario, unit, extras }) {
+        render({ time, elapsedSeconds, halfLives }, { scenario, unit, extras, source }) {
+            const act = (bq) => Format.activityIn(bq, unit);
+            const halfLife = scenario.model.halfLifeSeconds;
+            const timeUnit = toBestTimeUnit(halfLife).unit;
+            const { A, t } = referenceSymbols(scenario);
+            const sign = elapsedSeconds < 0 ? '−' : '+';
+            this.renderFormula([
+                `t − ${t} = T_{½} · log_{2}(${A} / A_{target}) = ${halfLifeIn(halfLife, timeUnit)} · ` +
+                    `log_{2}(${act(scenario.reference.activity)} / ${act(extras.targetActivity)}) = ${durationIn(elapsedSeconds, timeUnit)}`,
+                `t = ${t} ${sign} ${durationIn(Math.abs(elapsedSeconds), timeUnit)} = ${Format.dateTime(time)}`,
+            ], source ? [source] : []);
+
             const referenceName = referenceNameOf(scenario);
             const relative = Math.abs(elapsedSeconds) < 1e-3
                 ? 'already at the target activity'
@@ -501,8 +628,20 @@
             return result.vialScenario; // the vial, without the syringe residual
         }
 
-        render(result, { unit, extras }) {
+        render(result, { unit, extras, source }) {
             const scenario = result.vialScenario;
+            const act = (bq) => Format.activityIn(bq, unit);
+            const halfLife = scenario.model.halfLifeSeconds;
+            const perMlText = perMlSuffix(unit);
+            this.renderFormula([
+                `C(t_{adm}) = A_{0} · (½)^{(t_{adm} − t_{0}) / T_{½}} / V = ${act(scenario.initial.activity)} · ` +
+                    `${decayTerm(scenario.initial.secondsUntil(result.time), halfLife)} / ${Format.number(scenario.vial.totalMl)} mL = ` +
+                    `${act(result.concentration)}${perMlText}`,
+                `v = D / C(t_{adm}) = ${act(extras.desiredActivity)} / ${act(result.concentration)}${perMlText} = ` +
+                    `${Format.number(result.volumeMl)} mL`,
+                `A_{now} = D · (½)^{(t_{now} − t_{adm}) / T_{½}} = ${act(extras.desiredActivity)} · ` +
+                    `${decayTerm((result.readingTime - result.time) / 1000, halfLife)} = ${act(result.readingActivity)}`,
+            ], source ? [source] : []);
             const doseUnit = extras.desiredUnit;
             const readingLabel = `Expected Dose-Calibrator Reading Now (${Format.dateTime(result.readingTime)})`;
             const volumeText = `${Format.number(result.volumeMl)} mL`;
@@ -536,10 +675,10 @@
 
     /** A table of the activity at regular intervals; prints and copies (as tab-separated text). */
     class DecayTableCalculation extends Calculation {
-        constructor(panelElement, { stepUnit, describeHalfLife }) {
+        constructor(panelElement, { stepUnit, halfLife }) {
             super(panelElement);
             this.stepUnit = stepUnit;
-            this.describeHalfLife = describeHalfLife;
+            this.halfLife = halfLife; // HalfLifeInput, for the caption
         }
 
         readExtras(reader) {
@@ -556,7 +695,18 @@
             return scenario.schedule(start || scenario.reference.time, stepSeconds, rows);
         }
 
-        render(rows, { scenario, unit }) {
+        render(rows, { scenario, unit, source }) {
+            const act = (bq) => Format.activityIn(bq, unit);
+            const { A, t } = referenceSymbols(scenario);
+            const exampleIndex = Math.min(1, rows.length - 1);
+            const example = rows[exampleIndex];
+            this.renderFormula([
+                `A_{i} = ${A} · (½)^{(t_{i} − ${t}) / T_{½}};  row ${exampleIndex + 1}: ${act(scenario.reference.activity)} · ` +
+                    `${decayTerm(example.elapsedSeconds, scenario.model.halfLifeSeconds)} = ${act(example.activity)}`,
+                `% of reference = A_{i} / ${A}`,
+                ...(scenario.vial ? [`C_{i} = A_{i} / V,  V = ${Format.number(scenario.vial.totalMl)} mL`] : []),
+            ], source ? [source] : []);
+
             const otherBase = unit.baseUnit === 'Ci' ? 'Bq' : 'Ci';
             const columns = [
                 { title: 'Date & Time', cell: (row) => Format.dateTime(row.time) },
@@ -595,10 +745,12 @@
             }));
 
             const reference = scenario.reference;
-            const caption = `${this.describeHalfLife()} · Reference: ` +
-                `${scenario.usesResidual ? 'injected activity ' : ''}${Format.activityIn(reference.activity, unit)} ` +
-                `at ${Format.dateTime(reference.time)}`;
-            this.panel.setSlot('caption', caption);
+            const referenceText = ` · Reference: ${scenario.usesResidual ? 'injected activity ' : ''}` +
+                `${Format.activityIn(reference.activity, unit)} at ${Format.dateTime(reference.time)}`;
+            const caption = `${this.halfLife.describe()}${referenceText}`;
+            const captionSlot = this.panel.slot('caption');
+            captionSlot.replaceChildren(...this.halfLife.describeNodes(), referenceText);
+            captionSlot.hidden = false;
 
             this.summary = [
                 caption,
@@ -606,6 +758,56 @@
                 ...rows.map((row) => columns.map((column) => column.cell(row)).join('\t')),
             ];
         }
+    }
+
+    /** The generator's equations with the values used (times in hours). */
+    function generatorEquations(result, unit) {
+        const act = (bq) => Format.activityIn(bq, unit);
+        const { model, calibration } = result;
+        const perHour = (rate) => Number((rate * 3600).toPrecision(5));
+        const digits = (value) => Number(value.toPrecision(5));
+        const lambdaMo = perHour(model.parentRate);
+        const lambdaTc = perHour(model.daughterRate);
+        const lambdaDiff = perHour(model.daughterRate - model.parentRate);
+        const moHalfLife = model.parent.halfLifeSeconds;
+        const ratio = digits(model.daughterRate / (model.daughterRate - model.parentRate));
+        const kBqPerMBq = (r) => `${Number((r * 1000).toPrecision(3))} kBq/MBq`;
+
+        const lines = [
+            `λ = ln 2 / T_{½}:  λ_{Mo} = ln 2 / ${halfLifeIn(moHalfLife, 'hours')} = ${lambdaMo} h^{−1},  ` +
+                `λ_{Tc} = ln 2 / ${halfLifeIn(model.daughter.halfLifeSeconds, 'hours')} = ${lambdaTc} h^{−1}`,
+        ];
+        if (result.sinceLastElution !== null) {
+            const hours = Number((result.sinceLastElution / 3600).toPrecision(6));
+            lines.push(`A_{Mo}(t_{e}) = A_{Mo,cal} · (½)^{(t_{e} − t_{cal}) / T_{½,Mo}} = ${act(calibration.activity)} · ` +
+                `${decayTerm(calibration.secondsUntil(result.lastElution), moHalfLife, 'hours')} = ${act(result.moAtLastElution)}`);
+            lines.push(`A_{Tc} = b · λ_{Tc} / (λ_{Tc} − λ_{Mo}) · A_{Mo}(t_{e}) · (e^{−λ_{Mo}·Δt} − e^{−λ_{Tc}·Δt}),  ` +
+                `Δt = t − t_{e} = ${hours} h`);
+            lines.push(`A_{Tc} = ${model.branching} · ${ratio} · ${act(result.moAtLastElution)} · ` +
+                `(e^{−${lambdaMo}·${hours}} − e^{−${lambdaTc}·${hours}}) = ${act(result.available)}`);
+        } else {
+            lines.push(`A_{Tc} = b · λ_{Tc} / (λ_{Tc} − λ_{Mo}) · A_{Mo}(t)  (transient equilibrium) = ` +
+                `${model.branching} · ${ratio} · ${act(result.parentActivity)} = ${act(result.available)}`);
+        }
+        if (result.efficiency < 1) {
+            lines.push(`A_{eluate} = ε · A_{Tc} = ${digits(result.efficiency)} · ${act(result.available)} = ${act(result.eluate)}`);
+        }
+        lines.push(`A_{Mo}(t) = A_{Mo,cal} · (½)^{(t − t_{cal}) / T_{½,Mo}} = ${act(calibration.activity)} · ` +
+            `${decayTerm(calibration.secondsUntil(result.time), moHalfLife, 'hours')} = ${act(result.parentActivity)}`);
+        if (result.sinceLastElution !== null) {
+            lines.push(`t_{max} = ln(λ_{Tc} / λ_{Mo}) / (λ_{Tc} − λ_{Mo}) = ln(${lambdaTc} / ${lambdaMo}) / ${lambdaDiff} h^{−1} = ` +
+                `${durationIn(model.timeOfMaximum, 'hours')}`);
+        }
+        if (result.breakthrough) {
+            const { ratio: r0, limit, secondsToLimit } = result.breakthrough;
+            lines.push(`r_{0} = A_{Mo} / A_{Tc} = ${act(result.eluateMo)} / ${act(result.tcForBreakthrough)} = ${kBqPerMBq(r0)};  ` +
+                `r(t) = r_{0} · e^{(λ_{Tc} − λ_{Mo})·t}`);
+            if (Number.isFinite(secondsToLimit) && secondsToLimit > 0) {
+                lines.push(`t_{limit} = ln(limit / r_{0}) / (λ_{Tc} − λ_{Mo}) = ln(${kBqPerMBq(limit).split(' ')[0]} / ` +
+                    `${kBqPerMBq(r0).split(' ')[0]}) / ${lambdaDiff} h^{−1} = ${durationIn(secondsToLimit, 'hours')}`);
+            }
+        }
+        return lines;
     }
 
     /** Mo-99/Tc-99m generator: expected eluate, Tc-99m ingrowth and an optional Mo-99 breakthrough check. */
@@ -669,11 +871,26 @@
                 time: inputs.time,
                 limit: inputs.limit,
             });
-            return { ...elution, model, breakthrough, usesMeasuredTc: inputs.eluateTc !== null };
+            return {
+                ...elution,
+                model,
+                breakthrough,
+                usesMeasuredTc: inputs.eluateTc !== null,
+                calibration: generator.calibration,
+                lastElution: inputs.lastElution,
+                moAtLastElution: inputs.lastElution ? generator.parentActivityAt(inputs.lastElution) : null,
+                eluateMo: inputs.eluateMo,
+                tcForBreakthrough: inputs.eluateTc === null ? elution.eluate : inputs.eluateTc,
+            };
         }
 
         render(result, { extras }) {
             const unit = extras.unit;
+            this.renderFormula(generatorEquations(result, unit), [
+                { label: 'Mo-99 half-life', text: 'ENSDF via NNDC', url: sourceUrl('MO-99') },
+                { label: 'Tc-99m half-life', text: 'ENSDF via NNDC', url: sourceUrl('TC-99M1') },
+                { label: 'branching fraction b', text: 'ENSDF Mo-99 decay data (Browne & Tuli, Nucl. Data Sheets 145, 25 (2017))', url: MO99_DECAY_DATA_URL },
+            ]);
             const efficiencyText = `${Number((result.efficiency * 100).toPrecision(4))}%`;
             const groups = [
                 [result.efficiency < 1 ? `Expected Tc-99m in the Eluate (${efficiencyText} efficiency)`
@@ -797,7 +1014,7 @@
                 dose: new DoseCalculation(byId('doseSection')),
                 table: new DecayTableCalculation(byId('tableSection'), {
                     stepUnit: byId('tableStepUnit'),
-                    describeHalfLife: () => this.halfLife.describe(),
+                    halfLife: this.halfLife,
                 }),
                 generator: new GeneratorCalculation(byId('generatorSection')),
             };
@@ -858,7 +1075,7 @@
                     const scenario = inputs ? this.#buildScenario(inputs) : null;
                     const unit = this.units.mainUnit;
                     const result = calculation.compute(scenario, extras);
-                    calculation.render(result, { scenario, unit, extras });
+                    calculation.render(result, { scenario, unit, extras, source: this.halfLife.source });
                     calculation.context = { scenario: calculation.contextScenario(scenario, result), unit };
                     calculation.panel.show();
                     return reader.errors;
@@ -974,7 +1191,8 @@
                 lines.push(`Vial: ${Format.number(scenario.vial.totalMl)} mL total${partial}`);
             }
             const title = calculation.panel.section.querySelector('h3').textContent;
-            return [...lines, '', title, ...calculation.summary].join('\n');
+            const equations = calculation.formulaText.length ? ['', 'Equation:', ...calculation.formulaText] : [];
+            return [...lines, '', title, ...calculation.summary, ...equations].join('\n');
         }
 
         async #copy(button) {

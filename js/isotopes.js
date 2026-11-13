@@ -73,5 +73,19 @@
         return ISOTOPES.find((isotope) => isotope.symbol === symbol) || null;
     }
 
-    return { ISOTOPES, findIsotope };
+    /** "TC-99M1" -> "99Tc": the nucleus name NNDC uses (an isomer is listed under its nucleus). */
+    function nucleusOf(symbol) {
+        const [, element, mass] = /^([A-Z]+)-(\d+)/.exec(symbol);
+        return `${mass}${element.charAt(0)}${element.slice(1).toLowerCase()}`;
+    }
+
+    /** NNDC page with the ENSDF "Adopted Levels" dataset the half-life is taken from. */
+    function sourceUrl(symbol) {
+        return `https://www.nndc.bnl.gov/nudat3/getdataset.jsp?nucleus=${nucleusOf(symbol)}&unc=NDS`;
+    }
+
+    /** NNDC page with the Mo-99 decay data (Browne & Tuli) behind the Mo-99 -> Tc-99m branching fraction. */
+    const MO99_DECAY_DATA_URL = 'https://www.nndc.bnl.gov/nudat3/decaysearchdirect.jsp?nuc=99MO&unc=NDS';
+
+    return { ISOTOPES, findIsotope, nucleusOf, sourceUrl, MO99_DECAY_DATA_URL };
 });
