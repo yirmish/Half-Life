@@ -7,14 +7,17 @@ This project provides an intuitive, user-friendly HTML calculator designed to co
 
 * **Intuitive User Interface:** Clear, responsive, and easy-to-use layout.
 * **Flexible Inputs:** Enter the initial quantity, half-life value, and elapsed time.
-* **Unit Selection:** Supports multiple activity units such as Bq, Ci, and Rd, with automatic conversions.
-* **Real-Time Calculations:** Instantly calculates the remaining activity upon entering or modifying inputs.
-* **Predefined Isotopes:** Includes a comprehensive list of common isotopes used in nuclear medicine, selectable via a dropdown.
+* **Unit Selection:** Supports Bq (up to TBq), Ci and Rd, with automatic conversions. Results are shown first in the unit you chose, then in the other units.
+* **Live Results:** Once you calculate a result it stays up to date: changing any input recalculates it, and "Current Activity" refreshes every second.
+* **Predefined Isotopes:** Includes a comprehensive list of common isotopes used in nuclear medicine, selectable via a dropdown (with each half-life shown).
 * **Custom Half-Life Input:** Allows entering custom half-life values and selecting corresponding time units.
+* **"Now" Buttons:** Fill any date/time field with the current time in one click.
+* **Decay Summary:** Every result shows the elapsed time, the number of half-lives and the fraction remaining.
 * **Responsive Design:** Adapts seamlessly to various screen sizes and devices.
 * **Theme Selector:** Switch between "Clean" and "Radioactive" themes for improved visibility and user preference.
-* **Residual Activity Consideration:** Option to account for residual activity in a syringe after injection. Useful when initial activity is measured from the syringe before injection, and a subsequent measurement indicates residual activity.
+* **Residual Activity Consideration:** Option to account for residual activity in a syringe after injection. Useful when initial activity is measured from the syringe before injection, and a subsequent measurement indicates residual activity. The injected activity is shown explicitly.
 * **Activity Concentration Calculation:** Capability to calculate activity concentration or activity based on partial volumes, helpful when drawing only a portion of the radioactive substance from a vial.
+* **Works Offline:** No external scripts; only the web fonts are loaded from Google Fonts, and the page falls back to system fonts without them.
 
 ## Usage Instructions
 
@@ -69,7 +72,29 @@ To use this calculator locally:
    cd Half-Life
    ```
 
-3. Open `Half-Life_V3.html` in any modern web browser to start using the calculator immediately.
+3. Open `index.html` in any modern web browser to start using the calculator immediately. No build step or server is needed; keep the `css/` and `js/` folders next to it.
+
+## Project Structure
+
+```
+index.html            Page markup
+css/base.css          Layout and components (uses the theme variables)
+css/themes.css        "Clean" and "Radioactive" themes, as sets of CSS variables
+js/decay-core.js      Calculation core, no DOM: units, decay law, residual/volume scenario, formatting
+js/isotopes.js        Isotope half-life table (NNDC)
+js/ui-components.js   Reusable UI pieces: Field, FormReader, MessageBox, ToggleSection, ResultPanel
+js/theme.js           ThemeManager and the radioactive DotField animation
+js/app.js             The calculator page: inputs, the three calculations, CalculatorApp
+tests/                Unit tests for the calculation core
+```
+
+## Running the Tests
+
+The calculation core runs in Node as well as in the browser. With Node 18 or newer:
+
+```bash
+npm test
+```
 
 ## Formula and Scientific Background
 
@@ -83,6 +108,10 @@ Where:
 * $T$ is the half-life of the substance.
 * $t$ is the elapsed time.
 * $N(t)$ is the remaining quantity after time $t$.
+
+A year is taken as a Julian year (365.25 days), the convention used by nuclear-data tables.
+
+With a residual measurement, the injected activity is the initial activity decayed to the residual measurement time, minus the residual activity. All later results decay from that point.
 
 ## Scientific References
 
@@ -113,7 +142,7 @@ This project is licensed under the MIT License, allowing you to freely use, modi
 Future improvements might include:
 
 * Export results in CSV or PDF formats.
-* Implementation of dark mode.
+* A decay curve chart.
 * Persistence of previous calculations using local storage.
 
 Thank you for checking out this calculator!
