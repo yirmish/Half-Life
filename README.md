@@ -22,6 +22,8 @@ This project provides an intuitive, user-friendly HTML calculator designed to co
 * **Decay Table:** Activity at regular intervals (any start time, interval and number of rows), with the row for the current time highlighted. Print it on its own, or copy it as tab-separated text that pastes straight into Excel.
 * **Time-Interval Mode:** Calculate the activity a given time after the initial measurement (e.g. "after 48 hours") instead of at a date.
 * **Tc-99m Generator Elution:** Expected Tc-99m from a Mo-99/Tc-99m generator: Mo-99 on the column, Tc-99m available and in the eluate (with elution efficiency), the share of the maximum yield and when it peaks. An optional Mo-99 breakthrough check gives the Mo-99/Tc-99m ratio and when it reaches the limit (default 0.15 kBq/MBq). One click loads the eluate into the main calculator as the initial activity.
+* **Equations Under Every Result:** Each result shows, in small print, the equation used and the same equation with the actual numbers (e.g. `A(t) = A₀ · (½)^(Δt/T½) = 10.000 mCi · (½)^(5.000 h / 6.0072 h) = 5.612 mCi`), so every value can be checked by hand. The equations are included when a result is copied.
+* **Linked Data Sources:** The half-life source of every isotope links to its ENSDF dataset page at NNDC; the generator also links the Mo-99 decay data behind its branching fraction.
 * **Copy Results:** Every result has a Copy button that copies a self-contained text summary (isotope, inputs and result) for documentation.
 * **Works Offline:** No external scripts; only the web fonts are loaded from Google Fonts, and the page falls back to system fonts without them.
 
@@ -148,6 +150,8 @@ With a residual measurement, the injected activity is the initial activity decay
 ## Scientific References
 
 The half-life values used in this calculator are the ENSDF adopted (evaluated) values published by the [National Nuclear Data Center (NNDC)](https://www.nndc.bnl.gov/nudat3/) — the "Adopted Levels" dataset of each nuclide. `js/isotopes.js` lists, for every isotope, the evaluated value with its uncertainty and the Nuclear Data Sheets reference it comes from; the calculator shows this when an isotope is selected.
+
+When an isotope is selected, the calculator links to that page (e.g. [Tc-99m](https://www.nndc.bnl.gov/nudat3/getdataset.jsp?nucleus=99Tc&unc=NDS)).
 
 The table was last checked against NNDC on 2026-11-13 (all 41 values match). To re-check it after new evaluations are published (needs network access to www.nndc.bnl.gov):
 

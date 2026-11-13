@@ -437,6 +437,40 @@ details.advanced .input-group:last-child { margin-bottom: 0; }
 
 .use-eluate-button { margin-top: 1.25rem; }
 
+/* Equations behind a result: small, under it. */
+.formula {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--output-meta-color);
+    border-top: 1px dashed var(--table-border);
+}
+.formula__title {
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.formula__line {
+    margin: 0.15rem 0;
+    font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', 'Times New Roman', serif;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+}
+.formula sup,
+.formula sub {
+    font-size: 0.72em;
+    line-height: 0; /* keep the line height even */
+}
+.formula__sources { margin-top: 0.4rem; }
+
+.source-link {
+    color: var(--output-title-color);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.source-link:hover { text-decoration-thickness: 2px; }
+
 .live-badge {
     display: inline-block;
     margin-left: 0.35rem;

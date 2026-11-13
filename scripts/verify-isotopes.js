@@ -14,9 +14,8 @@
 'use strict';
 
 const path = require('node:path');
-const { ISOTOPES } = require(path.join(__dirname, '..', 'js', 'isotopes.js'));
+const { ISOTOPES, nucleusOf, sourceUrl } = require(path.join(__dirname, '..', 'js', 'isotopes.js'));
 
-const NNDC_URL = 'https://www.nndc.bnl.gov/nudat3/getdataset.jsp';
 /** Excitation energy (keV) of the metastable levels in the table. */
 const ISOMER_LEVEL_KEV = { 'TC-99M1': 142.68, 'KR-81M1': 190.6 };
 const ENSDF_UNITS = { ms: 'ms', s: 's', m: 'min', h: 'h', d: 'd', y: 'y' };
@@ -27,12 +26,6 @@ const stripTags = (html) => html
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/\s+/g, ' ')
     .trim();
-
-/** "TC-99M1" -> "99Tc" (the nucleus name NNDC uses). */
-function nucleusOf(symbol) {
-    const [, element, mass] = /^([A-Z]+)-(\d+)/.exec(symbol);
-    return `${mass}${element.charAt(0)}${element.slice(1).toLowerCase()}`;
-}
 
 /**
  * Drops event-handler and title attributes. NNDC keeps the evaluators' notes in
@@ -88,7 +81,7 @@ function parseEnsdfHalfLife(cell) {
 }
 
 async function checkIsotope(isotope) {
-    const url = `${NNDC_URL}?nucleus=${nucleusOf(isotope.symbol)}&unc=NDS`;
+    const url = sourceUrl(isotope.symbol); // the same page the calculator links to
     const response = await fetch(url, { headers: { 'User-Agent': 'half-life-calculator isotope check' } });
     if (!response.ok) return { ok: false, message: `HTTP ${response.status} for ${url}` };
 

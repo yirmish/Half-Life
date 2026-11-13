@@ -20,6 +20,52 @@
 
     const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
+    /**
+     * Equations are written in a tiny markup: "^{...}" is a superscript and
+     * "_{...}" a subscript; they can nest, e.g. "(½)^{(t − t_{0}) / T_{½}}".
+     * renderMath() turns it into text with <sup>/<sub> elements.
+     */
+    function renderMath(markup) {
+        const fragment = document.createDocumentFragment();
+        let position = 0;
+
+        const parseInto = (parent, insideBraces) => {
+            let text = '';
+            const flushText = () => {
+                if (text) parent.append(document.createTextNode(text));
+                text = '';
+            };
+            while (position < markup.length) {
+                const char = markup[position];
+                if (insideBraces && char === '}') {
+                    position += 1;
+                    break;
+                }
+                if ((char === '^' || char === '_') && markup[position + 1] === '{') {
+                    flushText();
+                    position += 2;
+                    const element = document.createElement(char === '^' ? 'sup' : 'sub');
+                    parseInto(element, true);
+                    parent.append(element);
+                } else {
+                    text += char;
+                    position += 1;
+                }
+            }
+            flushText();
+        };
+
+        parseInto(fragment, false);
+        return fragment;
+    }
+
+    /** The same equation as plain text for copying: subscripts inline, superscripts as ^(...). */
+    function mathToText(markup) {
+        let text = markup;
+        while (/_\{[^{}]*\}/.test(text)) text = text.replace(/_\{([^{}]*)\}/g, '$1');
+        return text.replace(/\^\{/g, '^(').replace(/\}/g, ')');
+    }
+
     /* ------------------------------------------------------------------ */
 
     /** An input together with the <p> that shows its error (id: `${inputId}Error`). */
@@ -218,6 +264,8 @@
 
     root.HalfLife = Object.assign(root.HalfLife || {}, {
         createElement,
+        renderMath,
+        mathToText,
         Field,
         FormReader,
         MessageBox,
