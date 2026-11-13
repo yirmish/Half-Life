@@ -1,0 +1,14 @@
+{
+  "name": "half-life",
+  "version": "4.0.0",
+  "description": "Radioactive decay calculator (static web page, no build step).",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "verify-isotopes": "node scripts/verify-isotopes.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
