@@ -282,6 +282,28 @@ input[aria-invalid="true"] { border-color: var(--error); }
 }
 .mode-switch input { accent-color: var(--mode-active-text); margin: 0; }
 
+.input-hint {
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--hint-color);
+}
+
+/* Collapsible "Advanced" groups (native <details>). */
+details.advanced {
+    margin-bottom: var(--field-gap);
+    padding: 0.75rem 1rem;
+    border: 1px dashed var(--field-border);
+    border-radius: var(--field-radius);
+}
+details.advanced > summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--label-color);
+}
+details.advanced[open] > summary { margin-bottom: 1rem; }
+details.advanced .input-group:last-child { margin-bottom: 0; }
+
 .section-note {
     margin: -0.75rem 0 1.25rem;
     font-size: 0.85rem;
@@ -405,6 +427,14 @@ input[aria-invalid="true"] { border-color: var(--error); }
 }
 .decay-table tbody tr:nth-child(even) { background: var(--table-stripe); }
 .decay-table tr.is-now { background: var(--table-now-bg); font-weight: 700; }
+
+.breakthrough-line[data-state="alert"] {
+    font-weight: 700;
+    color: var(--error);
+    text-shadow: var(--error-glow, none);
+}
+
+.use-eluate-button { margin-top: 1.25rem; }
 
 .live-badge {
     display: inline-block;

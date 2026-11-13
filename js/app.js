@@ -1,10 +1,10 @@
 /**
  * Half-Life — the calculator page.
  *
- * Reads the form, builds a DecayScenario (decay-core.js) and shows five kinds
- * of answers: the activity now, the activity at a chosen time, when a target
- * activity is reached, the volume to draw for a desired dose, and a decay
- * table. A result the user asked for stays "live": it is recomputed whenever
+ * Reads the form, builds a DecayScenario (decay-core.js) and shows the activity
+ * now, the activity at a chosen time, when a target activity is reached, the
+ * volume to draw for a desired dose and a decay table. A separate section
+ * computes the yield of a Mo-99/Tc-99m generator. A result the user asked for stays "live": it is recomputed whenever
  * an input changes, so it can never show a stale value.
  */
 (function (root) {
@@ -12,6 +12,7 @@
 
     const {
         InputError, ActivityUnit, DecayModel, Measurement, Vial, DecayScenario, Format,
+        ParentDaughterModel, Generator,
         BASE_UNITS, SELECTABLE_ACTIVITY_UNITS, timeToSeconds, toBestTimeUnit, toDateTimeLocalValue,
         ISOTOPES, findIsotope,
         createElement, Field, FormReader, MessageBox, ToggleSection, ResultPanel,
@@ -35,6 +36,15 @@
         tableStart: 'tableStart',
         tableStep: 'tableStepValue',
         tableRows: 'tableRows',
+        generatorMo: 'generatorMoActivity',
+        generatorCalibration: 'generatorCalibrationTime',
+        generatorLastElution: 'generatorLastElution',
+        generatorElution: 'generatorElutionTime',
+        generatorEfficiency: 'generatorEfficiency',
+        generatorBranching: 'generatorBranching',
+        eluateMo: 'eluateMoActivity',
+        eluateTc: 'eluateTcActivity',
+        breakthroughLimit: 'breakthroughLimit',
     });
 
     /** Every activity input with its own unit menu. The first one sets the main unit. */
@@ -43,6 +53,9 @@
         residualActivity: { input: 'residualActivityValue', unit: 'residualActivityUnit', conversion: 'residualActivityConversion' },
         targetActivity: { input: 'targetActivityValue', unit: 'targetActivityUnit', conversion: 'targetActivityConversion' },
         desiredActivity: { input: 'desiredActivityValue', unit: 'desiredActivityUnit', conversion: 'desiredActivityConversion' },
+        generatorMo: { input: 'generatorMoActivity', unit: 'generatorMoUnit', conversion: 'generatorMoConversion' },
+        eluateMo: { input: 'eluateMoActivity', unit: 'eluateMoUnit', conversion: 'eluateMoConversion' },
+        eluateTc: { input: 'eluateTcActivity', unit: 'eluateTcUnit', conversion: 'eluateTcConversion' },
     });
 
     /** How often results that depend on the current time are refreshed. */
@@ -265,6 +278,9 @@
     class Calculation {
         /** True when the result changes with the clock; it is then refreshed every second. */
         dependsOnNow = false;
+
+        /** False for a calculation that does not use the main inputs (initial activity, half-life, ...). */
+        usesSharedInputs = true;
 
         constructor(panelElement) {
             this.panel = new ResultPanel(panelElement);
@@ -539,6 +555,138 @@
         }
     }
 
+    /** Mo-99/Tc-99m generator: expected eluate, Tc-99m ingrowth and an optional Mo-99 breakthrough check. */
+    class GeneratorCalculation extends Calculation {
+        usesSharedInputs = false;
+
+        /** The last computed eluate, for "Use this eluate as the initial activity". */
+        lastEluate = null;
+
+        readExtras(reader, { units }) {
+            const toBq = (value, fieldName) => (value === null ? null : units.of(fieldName).toBq(value));
+
+            // Read in on-screen order, so the first error reported is the top-most one.
+            const moActivity = reader.number('generatorMo', { name: 'Mo-99 activity at calibration', positive: true });
+            const calibration = reader.dateTime('generatorCalibration', { name: 'calibration date and time' });
+            const lastElution = reader.dateTime('generatorLastElution', { name: 'last elution date and time', required: false });
+            const time = reader.dateTime('generatorElution', { name: 'elution date and time' });
+
+            const efficiencyPercent = reader.number('generatorEfficiency', { name: 'elution efficiency', positive: true });
+            if (efficiencyPercent !== null && efficiencyPercent > 100) {
+                reader.fail('generatorEfficiency', 'Elution efficiency cannot exceed 100%.');
+            }
+            const branching = reader.number('generatorBranching', { name: 'branching fraction', positive: true });
+            if (branching !== null && branching > 1) {
+                reader.fail('generatorBranching', 'The branching fraction cannot exceed 1.');
+            }
+
+            const eluateMo = reader.number('eluateMo', { name: 'Mo-99 measured in the eluate', required: false });
+            const eluateTc = reader.number('eluateTc', { name: 'Tc-99m measured in the eluate', positive: true, required: false });
+            const limit = eluateMo === null
+                ? null
+                : reader.number('breakthroughLimit', { name: 'breakthrough limit', positive: true });
+
+            return {
+                unit: units.of('generatorMo'),
+                moActivity: toBq(moActivity, 'generatorMo'),
+                calibration,
+                lastElution,
+                time,
+                efficiency: efficiencyPercent === null ? null : efficiencyPercent / 100,
+                branching,
+                eluateMo: toBq(eluateMo, 'eluateMo'),
+                eluateTc: toBq(eluateTc, 'eluateTc'),
+                limit: limit === null ? null : limit / 1000, // kBq/MBq -> ratio
+            };
+        }
+
+        compute(scenario, inputs) {
+            const model = new ParentDaughterModel({
+                parent: new DecayModel(findIsotope('MO-99').halfLifeSec),
+                daughter: new DecayModel(findIsotope('TC-99M1').halfLifeSec),
+                branching: inputs.branching,
+            });
+            const generator = new Generator({
+                model,
+                calibration: new Measurement(inputs.moActivity, inputs.calibration, 'generatorMo'),
+                lastElution: inputs.lastElution,
+            });
+            const elution = generator.elute(inputs.time, inputs.efficiency);
+            const breakthrough = inputs.eluateMo === null ? null : model.breakthrough({
+                parentActivity: inputs.eluateMo,
+                daughterActivity: inputs.eluateTc === null ? elution.eluate : inputs.eluateTc,
+                time: inputs.time,
+                limit: inputs.limit,
+            });
+            return { ...elution, model, breakthrough, usesMeasuredTc: inputs.eluateTc !== null };
+        }
+
+        render(result, { extras }) {
+            const unit = extras.unit;
+            const efficiencyText = `${Number((result.efficiency * 100).toPrecision(4))}%`;
+            const groups = [
+                [result.efficiency < 1 ? `Expected Tc-99m in the Eluate (${efficiencyText} efficiency)`
+                    : 'Expected Tc-99m in the Eluate', result.eluate],
+                result.efficiency < 1 && ['Tc-99m on the Column (100%)', result.available],
+                ['Mo-99 on the Column at Elution', result.parentActivity],
+            ].filter(Boolean);
+
+            const ingrowthText = this.#describeIngrowth(result);
+            const breakthrough = this.#describeBreakthrough(result);
+            const timeText = Format.dateTime(result.time);
+
+            this.panel.slot('groups').replaceChildren(
+                ...groups.map(([label, activity]) => createActivityGroup(label, activity, unit)));
+            this.panel.setSlot('time', timeText);
+            this.panel.setSlot('ingrowth', ingrowthText);
+            this.panel.setSlot('breakthrough', breakthrough.text);
+            this.panel.slot('breakthrough').dataset.state = breakthrough.state;
+
+            this.lastEluate = { activity: result.eluate, time: result.time };
+            this.summary = [
+                ...groups.map(([label, activity]) => `${label}: ${activityText(activity, unit)}`),
+                `Elution at: ${timeText}`,
+                ingrowthText,
+                breakthrough.text,
+            ].filter(Boolean);
+        }
+
+        #describeIngrowth({ sinceLastElution, fractionOfMaximum, maximumAt, model }) {
+            if (sinceLastElution === null) {
+                return 'No last elution entered: transient equilibrium assumed ' +
+                    `(Tc-99m = ${Format.number(model.equilibriumRatio)} × Mo-99), ` +
+                    'valid if the generator was not eluted in the last 2 days.';
+            }
+            return `${Format.duration(sinceLastElution)} since the last elution · ` +
+                `${Format.percent(fractionOfMaximum)} of the maximum yield, which is reached ` +
+                `${Format.shortDuration(model.timeOfMaximum)} after an elution (${Format.dateTime(maximumAt)}).`;
+        }
+
+        #describeBreakthrough({ breakthrough, usesMeasuredTc }) {
+            if (!breakthrough) return { text: '', state: '' };
+
+            // Up to 3 significant digits, written as people write limits: "0.05", "0.15".
+            const perMBq = (ratio) => `${Number((ratio * 1000).toPrecision(3))} kBq/MBq`;
+            const basis = usesMeasuredTc ? '' : ' (against the expected eluate)';
+            const measured = `Mo-99 breakthrough: ${perMBq(breakthrough.ratio)} at elution${basis}`;
+            if (breakthrough.exceeded) {
+                return {
+                    state: 'alert',
+                    text: `${measured} — above the ${perMBq(breakthrough.limit)} limit. Do not use this eluate.`,
+                };
+            }
+            if (!breakthrough.limitReachedAt) {
+                return { state: 'ok', text: `${measured}; it never reaches the ${perMBq(breakthrough.limit)} limit.` };
+            }
+            return {
+                state: 'ok',
+                text: `${measured}, below the ${perMBq(breakthrough.limit)} limit. The ratio grows as Tc-99m decays and ` +
+                    `reaches the limit ${Format.duration(breakthrough.secondsToLimit)} after elution ` +
+                    `(${Format.dateTime(breakthrough.limitReachedAt)}): use the eluate before then.`,
+            };
+        }
+    }
+
     /* ================================================================== */
     /* The application                                                     */
     /* ================================================================== */
@@ -585,6 +733,7 @@
                     stepUnit: byId('tableStepUnit'),
                     describeHalfLife: () => this.halfLife.describe(),
                 }),
+                generator: new GeneratorCalculation(byId('generatorSection')),
             };
 
             this.#bindEvents(byId);
@@ -631,12 +780,12 @@
         /** Runs one calculation and shows its result. Returns its errors (field -> message), if any. */
         #run(calculation) {
             const reader = new FormReader(this.fields);
-            const inputs = this.#readSharedInputs(reader);
+            const inputs = calculation.usesSharedInputs ? this.#readSharedInputs(reader) : null;
             const extras = calculation.readExtras(reader, { units: this.units });
 
             if (reader.isValid) {
                 try {
-                    const scenario = this.#buildScenario(inputs);
+                    const scenario = inputs ? this.#buildScenario(inputs) : null;
                     const unit = this.units.mainUnit;
                     calculation.render(calculation.compute(scenario, extras), { scenario, unit, extras });
                     calculation.context = { scenario, unit };
@@ -705,21 +854,48 @@
                 section.toggle(true);
                 field.input.focus();
             }
+            const details = field.input.closest('details');
+            if (details && !details.open) {
+                details.open = true;
+                field.input.focus();
+            }
+        }
+
+        /** Loads the generator's eluate into the main inputs, as Tc-99m at the elution time. */
+        #useEluate() {
+            const eluate = this.calculations.generator.lastEluate;
+            if (!eluate) return;
+
+            const mainUnit = this.units.mainUnit;
+            const activityInput = this.fields.initialActivity.input;
+            const timeInput = this.fields.initialTime.input;
+            activityInput.value = String(Number(mainUnit.fromBq(eluate.activity).toPrecision(6)));
+            timeInput.value = toDateTimeLocalValue(eluate.time);
+            this.halfLife.isotopeSelect.value = 'TC-99M1';
+            this.halfLife.isotopeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            [activityInput, timeInput].forEach((input) => input.dispatchEvent(new Event('input', { bubbles: true })));
+
+            activityInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            activityInput.focus({ preventScroll: true });
+            this.messages.show(`Initial activity set to the eluate: ${Format.activityIn(eluate.activity, mainUnit)} ` +
+                `of Tc-99m at ${Format.dateTime(eluate.time)}.`, 'success');
         }
 
         /** The text the Copy button puts on the clipboard: the inputs, then the result. */
         #copyTextFor(calculation) {
             const { scenario, unit } = calculation.context;
-            const lines = [
-                `Half-Life · Radioactive Decay Calculator (copied ${Format.dateTime(new Date())})`,
-                `Half-life: ${this.halfLife.describe()}`,
-                `Initial activity: ${Format.activityIn(scenario.initial.activity, unit)} at ${Format.dateTime(scenario.initial.time)}`,
-            ];
-            if (scenario.residual) {
+            const lines = [`Half-Life · Radioactive Decay Calculator (copied ${Format.dateTime(new Date())})`];
+            if (scenario) {
+                lines.push(
+                    `Half-life: ${this.halfLife.describe()}`,
+                    `Initial activity: ${Format.activityIn(scenario.initial.activity, unit)} at ${Format.dateTime(scenario.initial.time)}`,
+                );
+            }
+            if (scenario && scenario.residual) {
                 lines.push(`Residual activity: ${Format.activityIn(scenario.residual.activity, unit)} ` +
                     `at ${Format.dateTime(scenario.residual.time)}`);
             }
-            if (scenario.vial) {
+            if (scenario && scenario.vial) {
                 const partial = scenario.vial.drawnMl === null ? '' : `, partial volume ${Format.number(scenario.vial.drawnMl)} mL`;
                 lines.push(`Vial: ${Format.number(scenario.vial.totalMl)} mL total${partial}`);
             }
@@ -754,6 +930,7 @@
                 calculateTimeToTargetButton: this.calculations.target,
                 calculateDoseButton: this.calculations.dose,
                 calculateTableButton: this.calculations.table,
+                calculateGeneratorButton: this.calculations.generator,
             };
             Object.entries(buttonTargets).forEach(([id, calculation]) =>
                 byId(id).addEventListener('click', () => this.request(calculation)));
@@ -772,6 +949,7 @@
                 const copyButton = event.target.closest('[data-copy]');
                 if (copyButton) this.#copy(copyButton);
                 if (event.target.closest('[data-print]')) this.#print();
+                if (event.target.closest('[data-use-eluate]')) this.#useEluate();
             });
 
             // Enter in a field runs the calculation of the section the field is in.

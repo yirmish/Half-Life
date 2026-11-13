@@ -357,6 +357,137 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* Generators (parent -> daughter, e.g. Mo-99 -> Tc-99m)               */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Share of Mo-99 decays that produce Tc-99m, from ENSDF (Browne & Tuli, cut-off
+     * July 2017): 82.2(4)% direct beta feeding of the 142.68 keV isomer plus 5.58%
+     * reaching it through gamma cascades = 87.78(40)%.
+     */
+    const MO99_TO_TC99M_BRANCHING = 0.8778;
+
+    /** US NRC (10 CFR 35.204) / USP limit: 0.15 kBq Mo-99 per MBq Tc-99m. */
+    const MO99_BREAKTHROUGH_LIMIT = 0.15e-3;
+
+    /**
+     * Ingrowth of a short-lived daughter from a longer-lived parent (Bateman):
+     * t seconds after a complete elution, per unit of parent activity at that
+     * elution, the daughter activity is
+     *     b · λd/(λd − λp) · (e^(−λp·t) − e^(−λd·t)).
+     */
+    class ParentDaughterModel {
+        constructor({ parent, daughter, branching }) {
+            if (!(Number.isFinite(branching) && branching > 0 && branching <= 1)) {
+                throw new InputError('generatorBranching', 'The branching fraction must be more than 0 and at most 1.');
+            }
+            if (!(parent.halfLifeSeconds > daughter.halfLifeSeconds)) {
+                throw new RangeError('A generator needs a parent that lives longer than its daughter.');
+            }
+            this.parent = parent;
+            this.daughter = daughter;
+            this.branching = branching;
+            this.parentRate = Math.LN2 / parent.halfLifeSeconds;
+            this.daughterRate = Math.LN2 / daughter.halfLifeSeconds;
+            Object.freeze(this);
+        }
+
+        /** Daughter/parent activity ratio in transient equilibrium. */
+        get equilibriumRatio() {
+            return this.branching * this.daughterRate / (this.daughterRate - this.parentRate);
+        }
+
+        /** Daughter activity t seconds after a complete elution, per unit of parent activity then. */
+        ingrowth(seconds) {
+            return this.equilibriumRatio *
+                (Math.exp(-this.parentRate * seconds) - Math.exp(-this.daughterRate * seconds));
+        }
+
+        /** Seconds after an elution at which the daughter activity peaks. */
+        get timeOfMaximum() {
+            return Math.log(this.daughterRate / this.parentRate) / (this.daughterRate - this.parentRate);
+        }
+
+        /**
+         * Parent breakthrough in an eluate: the parent/daughter ratio grows as
+         * e^((λd − λp)·t) because the daughter decays faster. Returns the ratio at
+         * `time` and when it reaches `limit`.
+         */
+        breakthrough({ parentActivity, daughterActivity, time, limit }) {
+            if (!(Number.isFinite(parentActivity) && parentActivity >= 0)) {
+                throw new InputError('eluateMo', 'Mo-99 in the eluate must be a non-negative number.');
+            }
+            if (!(Number.isFinite(daughterActivity) && daughterActivity > 0)) {
+                throw new InputError('eluateTc', 'Tc-99m in the eluate must be a positive number.');
+            }
+            if (!(Number.isFinite(limit) && limit > 0)) {
+                throw new InputError('breakthroughLimit', 'The breakthrough limit must be a positive number.');
+            }
+            const ratio = parentActivity / daughterActivity;
+            const secondsToLimit = ratio === 0
+                ? Infinity
+                : Math.log(limit / ratio) / (this.daughterRate - this.parentRate);
+            return {
+                ratio,
+                limit,
+                exceeded: ratio > limit,
+                secondsToLimit,
+                limitReachedAt: Number.isFinite(secondsToLimit) ? new Date(time.getTime() + secondsToLimit * 1000) : null,
+            };
+        }
+    }
+
+    /**
+     * A generator: the parent activity at calibration and, optionally, when it was
+     * last eluted. Without a last elution the daughter is taken to be in transient
+     * equilibrium with the parent (true within 0.1% two days after an elution).
+     */
+    class Generator {
+        constructor({ model, calibration, lastElution = null }) {
+            this.model = model;
+            this.calibration = calibration;
+            this.lastElution = lastElution;
+            Object.freeze(this);
+        }
+
+        parentActivityAt(time) {
+            return this.model.parent.activityAfter(this.calibration.activity, this.calibration.secondsUntil(time));
+        }
+
+        daughterActivityAt(time) {
+            if (!this.lastElution) return this.model.equilibriumRatio * this.parentActivityAt(time);
+
+            const sinceElution = (time.getTime() - this.lastElution.getTime()) / 1000;
+            if (sinceElution < 0) {
+                throw new InputError('generatorElution', 'The elution must be after the last elution.');
+            }
+            return this.model.ingrowth(sinceElution) * this.parentActivityAt(this.lastElution);
+        }
+
+        /** What an elution at `time` yields; `efficiency` is the eluted fraction (0–1]. */
+        elute(time, efficiency = 1) {
+            if (!(Number.isFinite(efficiency) && efficiency > 0 && efficiency <= 1)) {
+                throw new InputError('generatorEfficiency', 'Elution efficiency must be more than 0% and at most 100%.');
+            }
+            const available = this.daughterActivityAt(time);
+            const sinceLastElution = this.lastElution ? (time.getTime() - this.lastElution.getTime()) / 1000 : null;
+            const peak = this.model.timeOfMaximum;
+            return {
+                time,
+                efficiency,
+                parentActivity: this.parentActivityAt(time),
+                available,
+                eluate: available * efficiency,
+                sinceLastElution,
+                fractionOfMaximum: sinceLastElution === null
+                    ? null
+                    : this.model.ingrowth(sinceLastElution) / this.model.ingrowth(peak),
+                maximumAt: this.lastElution ? new Date(this.lastElution.getTime() + peak * 1000) : null,
+            };
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Formatting                                                          */
     /* ------------------------------------------------------------------ */
 
@@ -456,6 +587,10 @@
         Measurement,
         Vial,
         DecayScenario,
+        MO99_TO_TC99M_BRANCHING,
+        MO99_BREAKTHROUGH_LIMIT,
+        ParentDaughterModel,
+        Generator,
         Format,
     };
 });

@@ -153,6 +153,10 @@
     --btn-bg: linear-gradient(to bottom, #f39c12, #d68910);
     --btn-bg-hover: linear-gradient(to bottom, #d68910, #b9770e);
 }
+.button--generator {
+    --btn-bg: linear-gradient(to bottom, #16a085, #117864);
+    --btn-bg-hover: linear-gradient(to bottom, #138d75, #0e6251);
+}
 
 /* ==========================================================================
    Radioactive
@@ -173,6 +177,7 @@
     --rx-info: #00ccff;
     --rx-yellow: #ffd500; /* radiation-warning yellow */
     --rx-orange: #ff9100;
+    --rx-pink: #ff4fd8;
 
     --glow-green-subtle: 0 0 4px var(--rx-green), 0 0 8px color-mix(in srgb, var(--rx-green) 40%, transparent);
     --glow-green-medium: 0 0 7px var(--rx-green), 0 0 15px color-mix(in srgb, var(--rx-green) 70%, transparent);
@@ -186,6 +191,8 @@
     --glow-yellow-medium: 0 0 7px var(--rx-yellow), 0 0 15px color-mix(in srgb, var(--rx-yellow) 70%, transparent);
     --glow-orange-subtle: 0 0 4px var(--rx-orange), 0 0 8px color-mix(in srgb, var(--rx-orange) 40%, transparent);
     --glow-orange-medium: 0 0 7px var(--rx-orange), 0 0 15px color-mix(in srgb, var(--rx-orange) 70%, transparent);
+    --glow-pink-subtle: 0 0 4px var(--rx-pink), 0 0 8px color-mix(in srgb, var(--rx-pink) 40%, transparent);
+    --glow-pink-medium: 0 0 7px var(--rx-pink), 0 0 15px color-mix(in srgb, var(--rx-pink) 70%, transparent);
 
     --font-body: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-display: 'Orbitron', var(--font-body);
@@ -364,6 +371,12 @@
     --btn-bg-hover: color-mix(in srgb, var(--rx-orange) 85%, #fff);
     --btn-shadow: var(--glow-orange-subtle), inset 0 0 5px rgba(255, 255, 255, 0.15);
     --btn-shadow-hover: var(--glow-orange-medium), inset 0 0 8px rgba(255, 255, 255, 0.3);
+}
+[data-theme="radioactive"] .button--generator {
+    --btn-bg: var(--rx-pink);
+    --btn-bg-hover: color-mix(in srgb, var(--rx-pink) 85%, #fff);
+    --btn-shadow: var(--glow-pink-subtle), inset 0 0 5px rgba(255, 255, 255, 0.15);
+    --btn-shadow-hover: var(--glow-pink-medium), inset 0 0 8px rgba(255, 255, 255, 0.3);
 }
 [data-theme="radioactive"] .copy-button:hover { box-shadow: var(--glow-cyan-subtle); }
 
