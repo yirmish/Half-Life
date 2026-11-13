@@ -162,6 +162,7 @@ input[aria-invalid="true"] { border-color: var(--error); }
     color: var(--hint-color);
 }
 .conversion-display > span { display: block; }
+.conversion-display > .conversion-warning { font-weight: 600; color: var(--error); }
 
 .field-hint {
     margin: calc(-1 * var(--field-gap) + 0.5rem) 0 var(--field-gap);
@@ -580,6 +581,21 @@ details.advanced .input-group:last-child { margin-bottom: 0; }
     border: none;
 }
 .theme-panel__close:hover { background: var(--panel-close-bg-hover); }
+
+.startup-error {
+    position: sticky;
+    top: 0;
+    z-index: 2000;
+    max-width: 800px;
+    margin: 0 auto 1rem;
+    padding: 1rem 1.25rem;
+    font-size: 0.95rem;
+    color: var(--message-error-text);
+    background: var(--message-error-bg);
+    border: 1px solid var(--message-error-border);
+    border-radius: var(--message-radius);
+    box-shadow: var(--message-error-shadow);
+}
 
 .noscript-warning {
     max-width: 800px;

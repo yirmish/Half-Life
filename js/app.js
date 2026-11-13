@@ -31,6 +31,7 @@
         specificTime: 'specificDateTime',
         elapsedTime: 'elapsedValue',
         targetActivity: 'targetActivityValue',
+        doseVialVolume: 'doseVialVolume',
         desiredActivity: 'desiredActivityValue',
         administrationTime: 'administrationTime',
         tableStart: 'tableStart',
@@ -57,6 +58,16 @@
         eluateMo: { input: 'eluateMoActivity', unit: 'eluateMoUnit', conversion: 'eluateMoConversion' },
         eluateTc: { input: 'eluateTcActivity', unit: 'eluateTcUnit', conversion: 'eluateTcConversion' },
     });
+
+    /** Which field each activity field's unit must agree with (unit vs. "no unit"). */
+    const ACTIVITY_ANCHORS = Object.freeze({
+        residualActivity: 'initialActivity',
+        targetActivity: 'initialActivity',
+        desiredActivity: 'initialActivity',
+        eluateMo: 'generatorMo',
+        eluateTc: 'generatorMo',
+    });
+    const ANCHOR_NOUNS = Object.freeze({ initialActivity: 'initial activity', generatorMo: 'Mo-99 activity' });
 
     /** How often results that depend on the current time are refreshed. */
     const LIVE_UPDATE_INTERVAL_MS = 1000;
@@ -128,21 +139,25 @@
     }
 
     /**
-     * The unit menus of the activity inputs. The initial activity's unit is the
-     * main unit; every other activity field follows it until the user picks a
-     * different unit there (picking the main unit again re-links the field).
-     * "No unit" applies to all fields or none: a plain number cannot be compared
-     * with an amount in Bq or Ci.
+     * The unit menus of the activity inputs. Every field follows the initial
+     * activity's unit until the user picks another unit for it (picking the
+     * initial unit again re-links it). The menus are always usable. A number
+     * without a unit cannot be combined with an amount in Bq or Ci, so such a mix
+     * is explained under the field and stops the calculation that uses it. Each
+     * field is checked against its "anchor": the initial activity, or the
+     * generator's Mo-99 activity for the eluate measurements.
      */
     class ActivityUnits {
-        constructor(doc, fieldIds) {
-            const [mainName] = Object.keys(fieldIds);
+        constructor(doc, fieldIds, anchors) {
+            this.anchors = anchors; // field name -> name of the field it must agree with
             this.fields = Object.fromEntries(Object.entries(fieldIds).map(([name, ids]) => [name, {
+                name,
                 input: doc.getElementById(ids.input),
                 select: doc.getElementById(ids.unit),
                 conversion: doc.getElementById(ids.conversion),
                 followsMain: true,
             }]));
+            const [mainName] = Object.keys(fieldIds);
             this.main = this.fields[mainName];
             this.followers = Object.values(this.fields).filter((field) => field !== this.main);
 
@@ -167,32 +182,53 @@
             return ActivityUnit.parse(this.fields[fieldName].select.value);
         }
 
-        render() {
-            const mainUnit = this.mainUnit;
-            for (const field of this.followers) {
-                if (mainUnit.isUnitless) field.followsMain = true;
-                if (field.followsMain) field.select.value = this.main.select.value;
-                field.select.querySelector('option[value=""]').disabled = !mainUnit.isUnitless;
-                field.select.disabled = mainUnit.isUnitless;
-                field.select.title = mainUnit.isUnitless
-                    ? 'Choose a unit for the initial activity first'
-                    : 'Unit for this value (it can differ from the initial activity’s unit)';
-            }
-            Object.values(this.fields).forEach((field) => this.#renderConversion(field, mainUnit));
+        /** Why this field's unit cannot be used with its anchor's unit, or '' when it can. */
+        problemFor(fieldName) {
+            const anchorName = this.anchors[fieldName];
+            if (!anchorName) return '';
+            const unit = this.of(fieldName);
+            const anchorUnit = this.of(anchorName);
+            if (unit.isUnitless === anchorUnit.isUnitless) return '';
+
+            const noun = ANCHOR_NOUNS[anchorName];
+            return anchorUnit.isUnitless
+                ? `The ${noun} has no unit. Choose a unit for it too, to enter this value in ${unit.symbol}.`
+                : `Choose a unit for this value: a number without a unit cannot be combined with the ${noun} in ${anchorUnit.symbol}.`;
         }
 
-        /** Under each input: the value in the main unit (if different) and in the other base units. */
-        #renderConversion({ input, select, conversion }, mainUnit) {
+        /** Reads an activity field in Bq (or as a plain number), checking its unit. */
+        read(reader, fieldName, rules) {
+            const value = reader.number(fieldName, rules);
+            if (value === null) return null;
+            const problem = this.problemFor(fieldName);
+            return problem ? reader.fail(fieldName, problem) : this.of(fieldName).toBq(value);
+        }
+
+        render() {
+            this.followers.forEach((field) => {
+                if (field.followsMain) field.select.value = this.main.select.value;
+            });
+            Object.values(this.fields).forEach((field) => this.#renderConversion(field));
+        }
+
+        /** Under each input: a unit warning, or the value in the anchor's unit and the other base units. */
+        #renderConversion({ name, input, select, conversion }) {
+            const problem = this.problemFor(name);
+            if (problem) {
+                conversion.replaceChildren(createElement('span', 'conversion-warning', `⚠ ${problem}`));
+                return;
+            }
+
             const unit = ActivityUnit.parse(select.value);
+            const anchorUnit = this.anchors[name] ? this.of(this.anchors[name]) : null;
             const value = Number(input.value);
             const lines = [];
-
             if (input.value !== '' && Number.isFinite(value) && !unit.isUnitless) {
                 const bq = unit.toBq(value);
-                const showMainUnit = unit.symbol !== mainUnit.symbol;
-                if (showMainUnit) lines.push(Format.activityIn(bq, mainUnit));
+                const showAnchorUnit = anchorUnit && !anchorUnit.isUnitless && anchorUnit.symbol !== unit.symbol;
+                if (showAnchorUnit) lines.push(Format.activityIn(bq, anchorUnit));
                 BASE_UNITS
-                    .filter((base) => base !== unit.baseUnit && !(showMainUnit && base === mainUnit.baseUnit))
+                    .filter((base) => base !== unit.baseUnit && !(showAnchorUnit && base === anchorUnit.baseUnit))
                     .forEach((base) => lines.push(Format.activity(bq, base)));
             }
             conversion.replaceChildren(...lines.map((text) => createElement('span', null, `= ${text}`)));
@@ -300,6 +336,11 @@
             throw new Error(`${this.constructor.name} must implement render().`);
         }
 
+        /** The scenario whose inputs the Copy button lists (the one the result was computed from). */
+        contextScenario(scenario /* , result */) {
+            return scenario;
+        }
+
         /** With a residual, states the injected activity that everything is based on. */
         renderReference(scenario, unit) {
             const { activity, time } = scenario.reference;
@@ -401,8 +442,7 @@
 
     class TimeToTargetCalculation extends Calculation {
         readExtras(reader, { units }) {
-            const target = reader.number('targetActivity', { name: 'target activity', positive: true });
-            return { targetActivity: target === null ? null : units.of('targetActivity').toBq(target) };
+            return { targetActivity: units.read(reader, 'targetActivity', { name: 'target activity', positive: true }) };
         }
 
         compute(scenario, { targetActivity }) {
@@ -436,20 +476,33 @@
         dependsOnNow = true; // the expected reading "now" changes with the clock
 
         readExtras(reader, { units }) {
-            const desired = reader.number('desiredActivity', { name: 'desired activity', positive: true });
-            const desiredUnit = units.of('desiredActivity');
             return {
-                desiredUnit,
-                desiredActivity: desired === null ? null : desiredUnit.toBq(desired),
+                vialMl: reader.number('doseVialVolume', { name: 'vial’s total volume', positive: true }),
+                desiredUnit: units.of('desiredActivity'),
+                desiredActivity: units.read(reader, 'desiredActivity', { name: 'desired activity', positive: true }),
                 time: reader.dateTime('administrationTime', { name: 'administration date and time' }),
             };
         }
 
-        compute(scenario, { desiredActivity, time }) {
-            return scenario.volumeFor(desiredActivity, time, new Date());
+        /**
+         * The vial is described by the initial measurement. A residual (syringe
+         * after injection) is not part of the vial, so it is left out here.
+         */
+        compute(scenario, { vialMl, desiredActivity, time }) {
+            const vialScenario = new DecayScenario({
+                model: scenario.model,
+                initial: scenario.initial,
+                vial: new Vial(vialMl),
+            });
+            return { ...vialScenario.volumeFor(desiredActivity, time, new Date()), vialScenario };
         }
 
-        render(result, { scenario, unit, extras }) {
+        contextScenario(scenario, result) {
+            return result.vialScenario; // the vial, without the syringe residual
+        }
+
+        render(result, { unit, extras }) {
+            const scenario = result.vialScenario;
             const doseUnit = extras.desiredUnit;
             const readingLabel = `Expected Dose-Calibrator Reading Now (${Format.dateTime(result.readingTime)})`;
             const volumeText = `${Format.number(result.volumeMl)} mL`;
@@ -563,10 +616,8 @@
         lastEluate = null;
 
         readExtras(reader, { units }) {
-            const toBq = (value, fieldName) => (value === null ? null : units.of(fieldName).toBq(value));
-
             // Read in on-screen order, so the first error reported is the top-most one.
-            const moActivity = reader.number('generatorMo', { name: 'Mo-99 activity at calibration', positive: true });
+            const moActivity = units.read(reader, 'generatorMo', { name: 'Mo-99 activity at calibration', positive: true });
             const calibration = reader.dateTime('generatorCalibration', { name: 'calibration date and time' });
             const lastElution = reader.dateTime('generatorLastElution', { name: 'last elution date and time', required: false });
             const time = reader.dateTime('generatorElution', { name: 'elution date and time' });
@@ -580,22 +631,22 @@
                 reader.fail('generatorBranching', 'The branching fraction cannot exceed 1.');
             }
 
-            const eluateMo = reader.number('eluateMo', { name: 'Mo-99 measured in the eluate', required: false });
-            const eluateTc = reader.number('eluateTc', { name: 'Tc-99m measured in the eluate', positive: true, required: false });
+            const eluateMo = units.read(reader, 'eluateMo', { name: 'Mo-99 measured in the eluate', required: false });
+            const eluateTc = units.read(reader, 'eluateTc', { name: 'Tc-99m measured in the eluate', positive: true, required: false });
             const limit = eluateMo === null
                 ? null
                 : reader.number('breakthroughLimit', { name: 'breakthrough limit', positive: true });
 
             return {
                 unit: units.of('generatorMo'),
-                moActivity: toBq(moActivity, 'generatorMo'),
+                moActivity,
                 calibration,
                 lastElution,
                 time,
                 efficiency: efficiencyPercent === null ? null : efficiencyPercent / 100,
                 branching,
-                eluateMo: toBq(eluateMo, 'eluateMo'),
-                eluateTc: toBq(eluateTc, 'eluateTc'),
+                eluateMo,
+                eluateTc,
                 limit: limit === null ? null : limit / 1000, // kBq/MBq -> ratio
             };
         }
@@ -691,9 +742,24 @@
     /* The application                                                     */
     /* ================================================================== */
 
+    /** Ids the page must contain; a missing one means the page and this code are from different versions. */
+    const REQUIRED_IDS = Object.freeze([
+        ...Object.values(FIELD_IDS),
+        ...Object.values(ACTIVITY_FIELDS).flatMap((ids) => Object.values(ids)),
+        'calculatorForm', 'messageBox', 'isotopeSelect', 'halfLifeUnit', 'halfLifeHint',
+        'toggleResidualButton', 'residualInputsSection', 'toggleVolumeButton', 'volumeInputsSection',
+        'calculateButton', 'currentActivitySection', 'calculateSpecificButton', 'specificActivitySection',
+        'elapsedUnit', 'calculateTimeToTargetButton', 'timeToTargetSection', 'calculateDoseButton', 'doseSection',
+        'tableStepUnit', 'calculateTableButton', 'tableSection', 'calculateGeneratorButton', 'generatorSection',
+    ]);
+
     class CalculatorApp {
         constructor(doc = document) {
             const byId = (id) => doc.getElementById(id);
+            const missing = REQUIRED_IDS.filter((id) => !byId(id));
+            if (missing.length > 0) {
+                throw new VersionMismatchError(`Missing page elements: ${missing.join(', ')}`);
+            }
 
             this.form = byId('calculatorForm');
             this.fields = Object.fromEntries(
@@ -706,7 +772,7 @@
                 unitSelect: byId('halfLifeUnit'),
                 hint: byId('halfLifeHint'),
             });
-            this.units = new ActivityUnits(doc, ACTIVITY_FIELDS);
+            this.units = new ActivityUnits(doc, ACTIVITY_FIELDS, ACTIVITY_ANCHORS);
 
             const refresh = () => this.refresh();
             this.residualSection = new ToggleSection(byId('toggleResidualButton'), byId('residualInputsSection'), {
@@ -745,7 +811,11 @@
             calculation.panel.activate();
             this.messages.hide();
             const problem = this.refresh().get(calculation);
-            if (!problem) return;
+            if (!problem) {
+                // The result can appear below the fold; without this it looks as if nothing happened.
+                calculation.panel.section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                return;
+            }
             this.messages.show(problem.message, 'error');
             this.#revealField(problem.field);
         }
@@ -787,8 +857,9 @@
                 try {
                     const scenario = inputs ? this.#buildScenario(inputs) : null;
                     const unit = this.units.mainUnit;
-                    calculation.render(calculation.compute(scenario, extras), { scenario, unit, extras });
-                    calculation.context = { scenario, unit };
+                    const result = calculation.compute(scenario, extras);
+                    calculation.render(result, { scenario, unit, extras });
+                    calculation.context = { scenario: calculation.contextScenario(scenario, result), unit };
                     calculation.panel.show();
                     return reader.errors;
                 } catch (error) {
@@ -803,7 +874,7 @@
 
         #readSharedInputs(reader) {
             return {
-                initialActivity: reader.number('initialActivity', { name: 'initial activity' }),
+                initialActivity: this.units.read(reader, 'initialActivity', { name: 'initial activity' }),
                 halfLifeSeconds: this.halfLife.read(reader),
                 initialTime: reader.dateTime('initialTime', { name: 'date and time of the initial activity' }),
                 residual: this.residualSection.isOpen ? this.#readResidual(reader) : null,
@@ -815,7 +886,7 @@
         #readResidual(reader) {
             if (this.fields.residualActivity.isEmpty) return null;
             return {
-                activity: reader.number('residualActivity', { name: 'residual activity' }),
+                activity: this.units.read(reader, 'residualActivity', { name: 'residual activity' }),
                 time: reader.dateTime('residualTime', { name: 'residual measurement date and time' }),
             };
         }
@@ -834,12 +905,10 @@
         }
 
         #buildScenario({ initialActivity, halfLifeSeconds, initialTime, residual, vial }) {
-            const units = this.units;
             return new DecayScenario({
                 model: new DecayModel(halfLifeSeconds),
-                initial: new Measurement(units.of('initialActivity').toBq(initialActivity), initialTime, 'initialActivity'),
-                residual: residual && new Measurement(
-                    units.of('residualActivity').toBq(residual.activity), residual.time, 'residualActivity'),
+                initial: new Measurement(initialActivity, initialTime, 'initialActivity'),
+                residual: residual && new Measurement(residual.activity, residual.time, 'residualActivity'),
                 vial: vial && new Vial(vial.totalMl, vial.partialMl),
             });
         }
@@ -866,10 +935,15 @@
             const eluate = this.calculations.generator.lastEluate;
             if (!eluate) return;
 
-            const mainUnit = this.units.mainUnit;
+            // Use the generator's unit for the initial activity, so no conversion is needed.
+            const unit = this.units.of('generatorMo');
+            const unitSelect = this.units.main.select;
+            unitSelect.value = unit.symbol;
+            unitSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
             const activityInput = this.fields.initialActivity.input;
             const timeInput = this.fields.initialTime.input;
-            activityInput.value = String(Number(mainUnit.fromBq(eluate.activity).toPrecision(6)));
+            activityInput.value = String(Number(unit.fromBq(eluate.activity).toPrecision(6)));
             timeInput.value = toDateTimeLocalValue(eluate.time);
             this.halfLife.isotopeSelect.value = 'TC-99M1';
             this.halfLife.isotopeSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -877,7 +951,7 @@
 
             activityInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
             activityInput.focus({ preventScroll: true });
-            this.messages.show(`Initial activity set to the eluate: ${Format.activityIn(eluate.activity, mainUnit)} ` +
+            this.messages.show(`Initial activity set to the eluate: ${Format.activityIn(eluate.activity, unit)} ` +
                 `of Tc-99m at ${Format.dateTime(eluate.time)}.`, 'success');
         }
 
@@ -920,7 +994,6 @@
             const done = () => { delete root.dataset.printing; };
             window.addEventListener('afterprint', done, { once: true });
             window.print();
-            setTimeout(done, 1000);
         }
 
         #bindEvents(byId) {
@@ -934,6 +1007,11 @@
             };
             Object.entries(buttonTargets).forEach(([id, calculation]) =>
                 byId(id).addEventListener('click', () => this.request(calculation)));
+
+            // The dose section and the volume section describe the same vial.
+            const mirror = (from, to) => from.addEventListener('input', () => { to.value = from.value; });
+            mirror(this.fields.totalVolume.input, this.fields.doseVialVolume.input);
+            mirror(this.fields.doseVialVolume.input, this.fields.totalVolume.input);
 
             // Keep every requested result in step with the inputs.
             this.form.addEventListener('input', () => this.refresh());
@@ -991,14 +1069,40 @@
     /* Start-up                                                            */
     /* ================================================================== */
 
+    class VersionMismatchError extends Error {}
+
+    /** Shows why the calculator could not start, instead of a page whose buttons do nothing. */
+    function showStartupError(error) {
+        let box = document.getElementById('startupError');
+        if (!box) { // a page older than this code has no box for it
+            box = createElement('div', 'startup-error');
+            box.setAttribute('role', 'alert');
+            document.body.prepend(box);
+        }
+        box.replaceChildren(
+            createElement('strong', null, 'The calculator did not start. '),
+            document.createTextNode(error instanceof VersionMismatchError
+                ? 'The page and its code are from different versions (an outdated copy in the browser cache). '
+                : 'An unexpected error occurred. '),
+            document.createTextNode('Reload the page (Ctrl+Shift+R, or Cmd+Shift+R on a Mac). If this keeps happening, ' +
+                'open it in an up-to-date Chrome, Edge, Firefox or Safari.'),
+        );
+        box.hidden = false;
+    }
+
     function start() {
         const byId = (id) => document.getElementById(id);
-        root.HalfLife.theme = new ThemeManager({
-            toggleButton: byId('themeSwitcherButton'),
-            panel: byId('themeSwitcherPanel'),
-            dotField: new DotField(byId('dotField')),
-        });
-        root.HalfLife.app = new CalculatorApp(document);
+        try {
+            root.HalfLife.theme = new ThemeManager({
+                toggleButton: byId('themeSwitcherButton'),
+                panel: byId('themeSwitcherPanel'),
+                dotField: new DotField(byId('dotField')),
+            });
+            root.HalfLife.app = new CalculatorApp(document);
+        } catch (error) {
+            showStartupError(error);
+            throw error;
+        }
     }
 
     if (document.readyState === 'loading') {
