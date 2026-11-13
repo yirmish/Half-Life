@@ -8,6 +8,7 @@ This project provides an intuitive, user-friendly HTML calculator designed to co
 * **Intuitive User Interface:** Clear, responsive, and easy-to-use layout.
 * **Flexible Inputs:** Enter the initial quantity, half-life value, and elapsed time.
 * **Unit Selection:** Supports Bq (up to TBq), Ci and Rd, with automatic conversions. Results are shown first in the unit you chose, then in the other units.
+* **A Unit for Every Activity Field:** The residual, target and desired activities each have their own unit menu (e.g. initial activity in MBq, residual measured in µCi). They follow the initial unit until you pick another one; under each field the value is also shown in the initial unit.
 * **Live Results:** Once you calculate a result it stays up to date: changing any input recalculates it, and "Current Activity" refreshes every second.
 * **Predefined Isotopes:** Includes a comprehensive list of common isotopes used in nuclear medicine, selectable via a dropdown (with each half-life shown).
 * **Custom Half-Life Input:** Allows entering custom half-life values and selecting corresponding time units.
@@ -17,6 +18,10 @@ This project provides an intuitive, user-friendly HTML calculator designed to co
 * **Theme Selector:** Switch between "Clean" and "Radioactive" themes for improved visibility and user preference.
 * **Residual Activity Consideration:** Option to account for residual activity in a syringe after injection. Useful when initial activity is measured from the syringe before injection, and a subsequent measurement indicates residual activity. The injected activity is shown explicitly.
 * **Activity Concentration Calculation:** Capability to calculate activity concentration or activity based on partial volumes, helpful when drawing only a portion of the radioactive substance from a vial.
+* **Volume to Draw for a Desired Dose:** Enter the dose you need at administration time and get the volume to draw from the vial, plus the reading the dose calibrator should show right now (updated every second).
+* **Decay Table:** Activity at regular intervals (any start time, interval and number of rows), with the row for the current time highlighted. Print it on its own, or copy it as tab-separated text that pastes straight into Excel.
+* **Time-Interval Mode:** Calculate the activity a given time after the initial measurement (e.g. "after 48 hours") instead of at a date.
+* **Copy Results:** Every result has a Copy button that copies a self-contained text summary (isotope, inputs and result) for documentation.
 * **Works Offline:** No external scripts; only the web fonts are loaded from Google Fonts, and the page falls back to system fonts without them.
 
 ## Usage Instructions
@@ -50,7 +55,15 @@ This project provides an intuitive, user-friendly HTML calculator designed to co
 7. **Perform Calculations:**
 
    * Click on "Calculate Current Activity" to display the remaining quantity at the present moment.
-   * Optionally calculate the activity at a specific future or past date/time or determine when the substance will reach a specified target activity.
+   * Optionally calculate the activity at a specific future or past date/time (or a time interval after the initial measurement), or determine when the substance will reach a specified target activity.
+
+8. **Draw a Dose (Optional):**
+
+   * Enter the vial's total volume (step 6), then the desired activity and the administration time. The calculator gives the volume to draw and the expected dose-calibrator reading now.
+
+9. **Decay Table (Optional):**
+
+   * Choose a start time (or leave it empty to start at the measurement), an interval and the number of rows. Use "Print" for a paper copy or "Copy" to paste it into a spreadsheet.
 
 ## Live Demo
 

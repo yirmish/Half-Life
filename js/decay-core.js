@@ -243,6 +243,8 @@
      * decay is linear, decaying that difference forward is exact.
      */
     class DecayScenario {
+        static MAX_TABLE_ROWS = 500;
+
         constructor({ model, initial, residual = null, vial = null }) {
             this.model = model;
             this.initial = initial;
@@ -285,6 +287,54 @@
                 concentration: this.vial ? this.vial.concentration(activity) : null,
                 drawnActivity: this.vial ? this.vial.drawnActivity(activity) : null,
             };
+        }
+
+        /**
+         * Dose drawing: the volume of the vial that holds `targetActivity` at `time`
+         * (the administration time). A drawn sample decays exactly like the vial, so
+         * only the administration time matters, not when it is drawn.
+         * With `readingTime`, also returns what the syringe holds then — the value a
+         * dose calibrator should show when the dose is checked.
+         */
+        volumeFor(targetActivity, time, readingTime = null) {
+            if (!this.vial) {
+                throw new InputError('totalVolume',
+                    'Enter the vial’s total volume (under “Consider Concentration/Partial Volume”).');
+            }
+            if (!(Number.isFinite(targetActivity) && targetActivity > 0)) {
+                throw new InputError('desiredActivity', 'Desired activity must be a positive number.');
+            }
+            const { concentration, activity } = this.activityAt(time);
+            if (!(concentration > 0)) {
+                throw new InputError('desiredActivity', 'The vial holds no activity, so no volume gives this dose.');
+            }
+            if (targetActivity > activity) {
+                throw new InputError('desiredActivity',
+                    'The whole vial holds less than the desired activity at the administration time.');
+            }
+            return {
+                time,
+                volumeMl: targetActivity / concentration,
+                concentration,
+                vialActivity: activity,
+                readingTime,
+                readingActivity: readingTime
+                    ? this.model.activityAfter(targetActivity, (readingTime.getTime() - time.getTime()) / 1000)
+                    : null,
+            };
+        }
+
+        /** Decay table: `rows` results, `stepSeconds` apart, starting at `start`. */
+        schedule(start, stepSeconds, rows) {
+            if (!(Number.isFinite(stepSeconds) && stepSeconds > 0)) {
+                throw new InputError('tableStep', 'The interval must be a positive number.');
+            }
+            if (!(Number.isInteger(rows) && rows >= 1 && rows <= DecayScenario.MAX_TABLE_ROWS)) {
+                throw new InputError('tableRows',
+                    `Number of rows must be a whole number from 1 to ${DecayScenario.MAX_TABLE_ROWS}.`);
+            }
+            return Array.from({ length: rows }, (_, index) =>
+                this.activityAt(new Date(start.getTime() + index * stepSeconds * 1000)));
         }
 
         /** When the activity equals `targetActivity` (which may be before the reference). */
@@ -361,11 +411,16 @@
             return `${value.toFixed(3)} ${unit}`;
         },
 
-        /** A half-life for menus, e.g. "6.006 h". */
-        halfLife(seconds) {
+        /** A compact duration, e.g. "6.006 h" or "30 min" (menus, table columns). */
+        shortDuration(seconds) {
             const abbreviations = { seconds: 's', minutes: 'min', hours: 'h', days: 'd', years: 'y' };
             const { value, unit } = toBestTimeUnit(seconds);
             return `${Number(value.toPrecision(4))} ${abbreviations[unit]}`;
+        },
+
+        /** A half-life for menus, e.g. "6.006 h". */
+        halfLife(seconds) {
+            return Format.shortDuration(seconds);
         },
 
         percent(fraction) {

@@ -170,6 +170,46 @@ test('timeToReach explains a zero reference activity', () => {
     assert.throws(() => scenario.timeToReach(1), /initial activity is zero/);
 });
 
+test('volumeFor: volume that holds the desired dose at administration time', () => {
+    // 1000 MBq in 10 mL at 08:00, T½ = 2 h. At 10:00 the vial holds 500 MBq (50 MBq/mL).
+    const scenario = new DecayScenario({
+        model: new DecayModel(2 * HOUR),
+        initial: new Measurement(1000e6, at('2025-01-01T08:00:00')),
+        vial: new Vial(10),
+    });
+    const dose = scenario.volumeFor(100e6, at('2025-01-01T10:00:00'), at('2025-01-01T08:00:00'));
+    close(dose.volumeMl, 2);
+    close(dose.concentration, 50e6);
+    close(dose.vialActivity, 500e6);
+    // Checked at 08:00, two hours before administration, the syringe reads twice as much.
+    close(dose.readingActivity, 200e6);
+    assert.equal(scenario.volumeFor(100e6, at('2025-01-01T10:00:00')).readingActivity, null);
+});
+
+test('volumeFor rejects impossible doses and a missing vial', () => {
+    const base = { model: new DecayModel(HOUR), initial: new Measurement(100, at('2025-01-01T08:00:00')) };
+    const field = (name) => (e) => e instanceof InputError && e.field === name;
+    assert.throws(() => new DecayScenario(base).volumeFor(10, at('2025-01-01T08:00:00')), field('totalVolume'));
+    const scenario = new DecayScenario({ ...base, vial: new Vial(5) });
+    assert.throws(() => scenario.volumeFor(60, at('2025-01-01T09:00:00')), field('desiredActivity')); // only 50 left
+    assert.throws(() => scenario.volumeFor(0, at('2025-01-01T09:00:00')), field('desiredActivity'));
+    const empty = new DecayScenario({ ...base, initial: new Measurement(0, at('2025-01-01T08:00:00')), vial: new Vial(5) });
+    assert.throws(() => empty.volumeFor(1, at('2025-01-01T09:00:00')), field('desiredActivity'));
+});
+
+test('schedule: evenly spaced decay table', () => {
+    const scenario = new DecayScenario({
+        model: new DecayModel(HOUR),
+        initial: new Measurement(800, at('2025-01-01T08:00:00')),
+    });
+    const rows = scenario.schedule(at('2025-01-01T08:00:00'), HOUR, 4);
+    assert.deepEqual(rows.map((r) => r.activity), [800, 400, 200, 100]);
+    assert.equal(rows[3].time.getTime(), at('2025-01-01T11:00:00').getTime());
+    assert.throws(() => scenario.schedule(new Date(), 0, 4), (e) => e.field === 'tableStep');
+    assert.throws(() => scenario.schedule(new Date(), HOUR, 2.5), (e) => e.field === 'tableRows');
+    assert.throws(() => scenario.schedule(new Date(), HOUR, DecayScenario.MAX_TABLE_ROWS + 1), (e) => e.field === 'tableRows');
+});
+
 test('Format.number keeps precision for small plain values', () => {
     assert.equal(Format.number(0.0004), '4.000e-4');
     assert.equal(Format.number(0.25), '0.2500');
@@ -206,6 +246,8 @@ test('Format.duration, halfLife and percent', () => {
     assert.equal(Format.duration(-2 * DAY), '2.000 days');
     assert.equal(Format.duration(90), '1.500 minutes');
     assert.equal(Format.halfLife(21620.88), '6.006 h');
+    assert.equal(Format.shortDuration(1800), '30 min');
+    assert.equal(Format.shortDuration(5400), '1.5 h');
     assert.equal(Format.percent(0.79370052), '79.37%');
     assert.equal(Format.percent(1e-7), '1.00e-5%');
 });
