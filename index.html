@@ -109,7 +109,7 @@
                         <div class="input-with-unit">
                             <input type="number" id="residualActivityValue" step="any" min="0" placeholder="Enter value"
                                    aria-describedby="residualActivityValueError residualActivityConversion">
-                            <span class="unit-addon" data-inherited-unit></span>
+                            <select id="residualActivityUnit" class="unit-select" aria-label="Residual activity unit"></select>
                         </div>
                         <p id="residualActivityValueError" class="error-message" aria-live="polite"></p>
                         <div id="residualActivityConversion" class="conversion-display"></div>
@@ -152,7 +152,10 @@
             <!-- Current activity -->
             <button id="calculateButton" type="button" class="button button--primary calculate-button">Calculate Current Activity</button>
             <section id="currentActivitySection" class="output-section" hidden>
-                <h3>Current Activity</h3>
+                <div class="output-header">
+                    <h3>Current Activity</h3>
+                    <button type="button" class="copy-button" data-copy>Copy</button>
+                </div>
                 <div class="result-groups" data-slot="groups"></div>
                 <p class="output-meta">Calculated at: <span data-slot="time"></span> <span class="live-badge">live</span></p>
                 <p class="output-meta" data-slot="reference" hidden></p>
@@ -162,7 +165,11 @@
             <!-- Activity at a specific time -->
             <section class="optional-section" data-enter-action="calculateSpecificButton">
                 <h2>Optional: Calculate Activity at a Specific Time</h2>
-                <div class="input-group">
+                <div class="mode-switch" role="radiogroup" aria-label="Specify the time as">
+                    <label><input type="radio" name="specificMode" value="date" checked> At a date and time</label>
+                    <label><input type="radio" name="specificMode" value="elapsed"> After a time interval</label>
+                </div>
+                <div class="input-group" data-specific-mode="date">
                     <label for="specificDateTime">Specific Date and Time:</label>
                     <div class="input-with-action">
                         <input type="datetime-local" id="specificDateTime" step="1" aria-describedby="specificDateTimeError">
@@ -170,10 +177,27 @@
                     </div>
                     <p id="specificDateTimeError" class="error-message" aria-live="polite"></p>
                 </div>
+                <div class="input-group" data-specific-mode="elapsed" hidden>
+                    <label for="elapsedValue">Time After the Initial Measurement:</label>
+                    <div class="input-with-unit">
+                        <input type="number" id="elapsedValue" step="any" min="0" placeholder="e.g. 48" aria-describedby="elapsedValueError">
+                        <select id="elapsedUnit" class="unit-select" aria-label="Time interval unit">
+                            <option value="seconds">Seconds</option>
+                            <option value="minutes">Minutes</option>
+                            <option value="hours" selected>Hours</option>
+                            <option value="days">Days</option>
+                            <option value="years">Years</option>
+                        </select>
+                    </div>
+                    <p id="elapsedValueError" class="error-message" aria-live="polite"></p>
+                </div>
                 <button id="calculateSpecificButton" type="button" class="button button--secondary">Calculate for Specific Time</button>
 
                 <div id="specificActivitySection" class="output-section" aria-live="polite" hidden>
-                    <h3>Activity at Specified Time</h3>
+                    <div class="output-header">
+                        <h3>Activity at Specified Time</h3>
+                        <button type="button" class="copy-button" data-copy>Copy</button>
+                    </div>
                     <div class="result-groups" data-slot="groups"></div>
                     <p class="output-meta">For date: <span data-slot="time"></span></p>
                     <p class="output-meta" data-slot="reference" hidden></p>
@@ -189,7 +213,7 @@
                     <div class="input-with-unit">
                         <input type="number" id="targetActivityValue" step="any" min="0" placeholder="Enter value"
                                aria-describedby="targetActivityValueError targetActivityConversion">
-                        <span class="unit-addon" data-inherited-unit></span>
+                        <select id="targetActivityUnit" class="unit-select" aria-label="Target activity unit"></select>
                     </div>
                     <p id="targetActivityValueError" class="error-message" aria-live="polite"></p>
                     <div id="targetActivityConversion" class="conversion-display"></div>
@@ -197,10 +221,213 @@
                 <button id="calculateTimeToTargetButton" type="button" class="button button--success">Calculate Time to Reach Target</button>
 
                 <div id="timeToTargetSection" class="output-section" aria-live="polite" hidden>
-                    <h3>Time to Reach Target Activity</h3>
+                    <div class="output-header">
+                        <h3>Time to Reach Target Activity</h3>
+                        <button type="button" class="copy-button" data-copy>Copy</button>
+                    </div>
                     <p class="output-datetime">Estimated Date and Time: <span class="output-date" data-slot="time"></span></p>
                     <p class="output-meta">Relative to the <span data-slot="reference-name">initial measurement</span>: <span data-slot="relative"></span></p>
                     <p class="output-meta" data-slot="reference" hidden></p>
+                </div>
+            </section>
+
+            <!-- Dose drawing: volume that holds a desired activity at administration -->
+            <section class="optional-section" data-enter-action="calculateDoseButton">
+                <h2>Optional: Volume to Draw for a Desired Dose</h2>
+                <p class="section-note">Uses the vial’s total volume from “Consider Concentration/Partial Volume”.</p>
+                <div class="input-group">
+                    <label for="desiredActivityValue">Desired Activity at Administration:</label>
+                    <div class="input-with-unit">
+                        <input type="number" id="desiredActivityValue" step="any" min="0" placeholder="Enter value"
+                               aria-describedby="desiredActivityValueError desiredActivityConversion">
+                        <select id="desiredActivityUnit" class="unit-select" aria-label="Desired activity unit"></select>
+                    </div>
+                    <p id="desiredActivityValueError" class="error-message" aria-live="polite"></p>
+                    <div id="desiredActivityConversion" class="conversion-display"></div>
+                </div>
+                <div class="input-group">
+                    <label for="administrationTime">Administration Date/Time:</label>
+                    <div class="input-with-action">
+                        <input type="datetime-local" id="administrationTime" step="1" aria-describedby="administrationTimeError">
+                        <button type="button" class="now-button" data-now-for="administrationTime">Now</button>
+                    </div>
+                    <p id="administrationTimeError" class="error-message" aria-live="polite"></p>
+                </div>
+                <button id="calculateDoseButton" type="button" class="button button--dose">Calculate Volume to Draw</button>
+
+                <div id="doseSection" class="output-section" hidden>
+                    <div class="output-header">
+                        <h3>Volume to Draw</h3>
+                        <button type="button" class="copy-button" data-copy>Copy</button>
+                    </div>
+                    <div class="result-groups" data-slot="groups"></div>
+                    <p class="output-meta">For administration at: <span data-slot="time"></span></p>
+                    <p class="output-meta" data-slot="note" hidden></p>
+                    <p class="output-meta" data-slot="reference" hidden></p>
+                </div>
+            </section>
+
+            <!-- Decay table -->
+            <section id="decayTableBlock" class="optional-section" data-enter-action="calculateTableButton">
+                <h2>Optional: Decay Table</h2>
+                <div class="input-group">
+                    <label for="tableStart">Start Date/Time (Optional — defaults to the reference measurement):</label>
+                    <div class="input-with-action">
+                        <input type="datetime-local" id="tableStart" step="1" aria-describedby="tableStartError">
+                        <button type="button" class="now-button" data-now-for="tableStart">Now</button>
+                    </div>
+                    <p id="tableStartError" class="error-message" aria-live="polite"></p>
+                </div>
+                <div class="grid-2">
+                    <div class="input-group">
+                        <label for="tableStepValue">Interval:</label>
+                        <div class="input-with-unit">
+                            <input type="number" id="tableStepValue" step="any" min="0" value="1" aria-describedby="tableStepValueError">
+                            <select id="tableStepUnit" class="unit-select" aria-label="Interval unit">
+                                <option value="seconds">Seconds</option>
+                                <option value="minutes">Minutes</option>
+                                <option value="hours" selected>Hours</option>
+                                <option value="days">Days</option>
+                                <option value="years">Years</option>
+                            </select>
+                        </div>
+                        <p id="tableStepValueError" class="error-message" aria-live="polite"></p>
+                    </div>
+                    <div class="input-group">
+                        <label for="tableRows">Number of Rows:</label>
+                        <input type="number" id="tableRows" step="1" min="1" max="500" value="12" aria-describedby="tableRowsError">
+                        <p id="tableRowsError" class="error-message" aria-live="polite"></p>
+                    </div>
+                </div>
+                <button id="calculateTableButton" type="button" class="button button--table">Create Decay Table</button>
+
+                <div id="tableSection" class="output-section" hidden>
+                    <div class="output-header">
+                        <h3>Decay Table</h3>
+                        <div class="output-actions">
+                            <button type="button" class="copy-button" data-copy title="Copies tab-separated text that pastes into Excel">Copy</button>
+                            <button type="button" class="copy-button" data-print>Print</button>
+                        </div>
+                    </div>
+                    <p class="output-meta table-caption" data-slot="caption"></p>
+                    <div class="table-scroll">
+                        <table class="decay-table">
+                            <thead data-slot="head"></thead>
+                            <tbody data-slot="rows"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mo-99/Tc-99m generator -->
+            <section id="generatorBlock" class="optional-section" data-enter-action="calculateGeneratorButton">
+                <h2>Optional: Tc-99m Generator Elution</h2>
+                <p class="section-note">Expected Tc-99m from a Mo-99/Tc-99m generator. This section does not use the inputs above.</p>
+                <div class="input-group">
+                    <label for="generatorMoActivity">Mo-99 Activity at Calibration:</label>
+                    <div class="input-with-unit">
+                        <input type="number" id="generatorMoActivity" step="any" min="0" placeholder="Enter value"
+                               aria-describedby="generatorMoActivityError generatorMoConversion">
+                        <select id="generatorMoUnit" class="unit-select" aria-label="Mo-99 activity unit"></select>
+                    </div>
+                    <p id="generatorMoActivityError" class="error-message" aria-live="polite"></p>
+                    <div id="generatorMoConversion" class="conversion-display"></div>
+                </div>
+                <div class="input-group">
+                    <label for="generatorCalibrationTime">Calibration Date/Time:</label>
+                    <div class="input-with-action">
+                        <input type="datetime-local" id="generatorCalibrationTime" step="1" aria-describedby="generatorCalibrationTimeError">
+                        <button type="button" class="now-button" data-now-for="generatorCalibrationTime">Now</button>
+                    </div>
+                    <p id="generatorCalibrationTimeError" class="error-message" aria-live="polite"></p>
+                </div>
+                <div>
+                    <div class="input-group">
+                        <label for="generatorLastElution">Last Elution (Optional):</label>
+                        <div class="input-with-action">
+                            <input type="datetime-local" id="generatorLastElution" step="1"
+                                   aria-describedby="generatorLastElutionError generatorLastElutionHint">
+                            <button type="button" class="now-button" data-now-for="generatorLastElution">Now</button>
+                        </div>
+                        <p id="generatorLastElutionError" class="error-message" aria-live="polite"></p>
+                        <p id="generatorLastElutionHint" class="input-hint">Leave empty if not eluted in the last 2 days (equilibrium).</p>
+                    </div>
+                    <div class="input-group">
+                        <label for="generatorElutionTime">Elution Date/Time:</label>
+                        <div class="input-with-action">
+                            <input type="datetime-local" id="generatorElutionTime" step="1" aria-describedby="generatorElutionTimeError">
+                            <button type="button" class="now-button" data-now-for="generatorElutionTime">Now</button>
+                        </div>
+                        <p id="generatorElutionTimeError" class="error-message" aria-live="polite"></p>
+                    </div>
+                </div>
+
+                <details class="advanced">
+                    <summary>Advanced: elution efficiency and branching fraction</summary>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label for="generatorEfficiency">Elution Efficiency (%):</label>
+                            <input type="number" id="generatorEfficiency" step="any" min="0" max="100" value="100"
+                                   aria-describedby="generatorEfficiencyError">
+                            <p id="generatorEfficiencyError" class="error-message" aria-live="polite"></p>
+                        </div>
+                        <div class="input-group">
+                            <label for="generatorBranching">Mo-99 → Tc-99m Branching Fraction:</label>
+                            <input type="number" id="generatorBranching" step="any" min="0" max="1" value="0.8778"
+                                   aria-describedby="generatorBranchingError">
+                            <p id="generatorBranchingError" class="error-message" aria-live="polite"></p>
+                        </div>
+                    </div>
+                    <p class="input-hint">0.8778 is the share of Mo-99 decays that produce Tc-99m, from ENSDF (Browne &amp; Tuli, 2017):
+                        82.2% direct beta feeding of the isomer plus 5.6% through gamma cascades (± 0.4%).
+                        Use the efficiency stated by the generator’s manufacturer.</p>
+                </details>
+
+                <details class="advanced">
+                    <summary>Mo-99 breakthrough check (optional)</summary>
+                    <div class="input-group">
+                        <label for="eluateMoActivity">Mo-99 Measured in the Eluate:</label>
+                        <div class="input-with-unit">
+                            <input type="number" id="eluateMoActivity" step="any" min="0" placeholder="Enter value"
+                                   aria-describedby="eluateMoActivityError eluateMoConversion">
+                            <select id="eluateMoUnit" class="unit-select" aria-label="Mo-99 in eluate unit"></select>
+                        </div>
+                        <p id="eluateMoActivityError" class="error-message" aria-live="polite"></p>
+                        <div id="eluateMoConversion" class="conversion-display"></div>
+                    </div>
+                    <div class="input-group">
+                        <label for="eluateTcActivity">Tc-99m Measured in the Eluate (Optional — defaults to the expected eluate):</label>
+                        <div class="input-with-unit">
+                            <input type="number" id="eluateTcActivity" step="any" min="0" placeholder="Enter value"
+                                   aria-describedby="eluateTcActivityError eluateTcConversion">
+                            <select id="eluateTcUnit" class="unit-select" aria-label="Tc-99m in eluate unit"></select>
+                        </div>
+                        <p id="eluateTcActivityError" class="error-message" aria-live="polite"></p>
+                        <div id="eluateTcConversion" class="conversion-display"></div>
+                    </div>
+                    <div class="input-group">
+                        <label for="breakthroughLimit">Limit (kBq Mo-99 per MBq Tc-99m):</label>
+                        <input type="number" id="breakthroughLimit" step="any" min="0" value="0.15"
+                               aria-describedby="breakthroughLimitError">
+                        <p id="breakthroughLimitError" class="error-message" aria-live="polite"></p>
+                        <p class="input-hint">Default 0.15 kBq/MBq (= 0.15 µCi/mCi), the US NRC/USP limit. Use your local limit if it differs.</p>
+                    </div>
+                </details>
+
+                <button id="calculateGeneratorButton" type="button" class="button button--generator">Calculate Elution</button>
+
+                <div id="generatorSection" class="output-section" aria-live="polite" hidden>
+                    <div class="output-header">
+                        <h3>Generator Elution</h3>
+                        <button type="button" class="copy-button" data-copy>Copy</button>
+                    </div>
+                    <div class="result-groups" data-slot="groups"></div>
+                    <p class="output-meta">Elution at: <span data-slot="time"></span></p>
+                    <p class="output-meta" data-slot="ingrowth"></p>
+                    <p class="output-meta breakthrough-line" data-slot="breakthrough" hidden></p>
+                    <button type="button" class="button button--small button--generator use-eluate-button" data-use-eluate>
+                        Use This Eluate as the Initial Activity
+                    </button>
                 </div>
             </section>
         </div>

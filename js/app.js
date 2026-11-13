@@ -1,17 +1,19 @@
 /**
  * Half-Life — the calculator page.
  *
- * Reads the form, builds a DecayScenario (decay-core.js) and shows three kinds
- * of answers: the activity now, the activity at a chosen time, and when a
- * target activity is reached. A result the user asked for stays "live": it is
- * recomputed whenever an input changes, so it can never show a stale value.
+ * Reads the form, builds a DecayScenario (decay-core.js) and shows the activity
+ * now, the activity at a chosen time, when a target activity is reached, the
+ * volume to draw for a desired dose and a decay table. A separate section
+ * computes the yield of a Mo-99/Tc-99m generator. A result the user asked for stays "live": it is recomputed whenever
+ * an input changes, so it can never show a stale value.
  */
 (function (root) {
     'use strict';
 
     const {
         InputError, ActivityUnit, DecayModel, Measurement, Vial, DecayScenario, Format,
-        SELECTABLE_ACTIVITY_UNITS, timeToSeconds, toBestTimeUnit, toDateTimeLocalValue,
+        ParentDaughterModel, Generator,
+        BASE_UNITS, SELECTABLE_ACTIVITY_UNITS, timeToSeconds, toBestTimeUnit, toDateTimeLocalValue,
         ISOTOPES, findIsotope,
         createElement, Field, FormReader, MessageBox, ToggleSection, ResultPanel,
         DotField, ThemeManager,
@@ -27,10 +29,36 @@
         totalVolume: 'totalVolume',
         partialVolume: 'partialVolume',
         specificTime: 'specificDateTime',
+        elapsedTime: 'elapsedValue',
         targetActivity: 'targetActivityValue',
+        desiredActivity: 'desiredActivityValue',
+        administrationTime: 'administrationTime',
+        tableStart: 'tableStart',
+        tableStep: 'tableStepValue',
+        tableRows: 'tableRows',
+        generatorMo: 'generatorMoActivity',
+        generatorCalibration: 'generatorCalibrationTime',
+        generatorLastElution: 'generatorLastElution',
+        generatorElution: 'generatorElutionTime',
+        generatorEfficiency: 'generatorEfficiency',
+        generatorBranching: 'generatorBranching',
+        eluateMo: 'eluateMoActivity',
+        eluateTc: 'eluateTcActivity',
+        breakthroughLimit: 'breakthroughLimit',
     });
 
-    /** How often the "Current Activity" result is refreshed. */
+    /** Every activity input with its own unit menu. The first one sets the main unit. */
+    const ACTIVITY_FIELDS = Object.freeze({
+        initialActivity: { input: 'initialActivity', unit: 'initialActivityUnit', conversion: 'initialActivityConversion' },
+        residualActivity: { input: 'residualActivityValue', unit: 'residualActivityUnit', conversion: 'residualActivityConversion' },
+        targetActivity: { input: 'targetActivityValue', unit: 'targetActivityUnit', conversion: 'targetActivityConversion' },
+        desiredActivity: { input: 'desiredActivityValue', unit: 'desiredActivityUnit', conversion: 'desiredActivityConversion' },
+        generatorMo: { input: 'generatorMoActivity', unit: 'generatorMoUnit', conversion: 'generatorMoConversion' },
+        eluateMo: { input: 'eluateMoActivity', unit: 'eluateMoUnit', conversion: 'eluateMoConversion' },
+        eluateTc: { input: 'eluateTcActivity', unit: 'eluateTcUnit', conversion: 'eluateTcConversion' },
+    });
+
+    /** How often results that depend on the current time are refreshed. */
     const LIVE_UPDATE_INTERVAL_MS = 1000;
 
     /* ================================================================== */
@@ -63,6 +91,15 @@
             return value === null ? null : timeToSeconds(value, this.unitSelect.value);
         }
 
+        /** One line for copied results, e.g. "Fluorine-18 (F-18), T½ = 109.77 ± 0.05 min (ENSDF via NNDC)". */
+        describe() {
+            const isotope = this.selectedIsotope;
+            const abbreviations = { seconds: 's', minutes: 'min', hours: 'h', days: 'd', years: 'y' };
+            return isotope
+                ? `${isotope.name}, T½ = ${isotope.ensdf} (ENSDF via NNDC)`
+                : `custom, T½ = ${this.valueInput.value.trim()} ${abbreviations[this.unitSelect.value]}`;
+        }
+
         #populateIsotopes() {
             const toOption = (isotope) => {
                 const option = createElement('option', null,
@@ -91,50 +128,83 @@
     }
 
     /**
-     * The activity unit menu. The residual and target activities use the same unit,
-     * shown next to their inputs; under each activity input the value is also
-     * shown converted to the other units.
+     * The unit menus of the activity inputs. The initial activity's unit is the
+     * main unit; every other activity field follows it until the user picks a
+     * different unit there (picking the main unit again re-links the field).
+     * "No unit" applies to all fields or none: a plain number cannot be compared
+     * with an amount in Bq or Ci.
      */
-    class ActivityUnitControl {
-        constructor({ select, inheritedUnitLabels, conversions }) {
-            this.select = select;
-            this.inheritedUnitLabels = inheritedUnitLabels;
-            this.conversions = conversions; // [{ input, output }]
+    class ActivityUnits {
+        constructor(doc, fieldIds) {
+            const [mainName] = Object.keys(fieldIds);
+            this.fields = Object.fromEntries(Object.entries(fieldIds).map(([name, ids]) => [name, {
+                input: doc.getElementById(ids.input),
+                select: doc.getElementById(ids.unit),
+                conversion: doc.getElementById(ids.conversion),
+                followsMain: true,
+            }]));
+            this.main = this.fields[mainName];
+            this.followers = Object.values(this.fields).filter((field) => field !== this.main);
 
-            this.#populate();
-            select.addEventListener('change', () => this.render());
-            conversions.forEach(({ input }) => input.addEventListener('input', () => this.render()));
+            Object.values(this.fields).forEach((field) => {
+                this.#populate(field.select);
+                field.input.addEventListener('input', () => this.render());
+            });
+            this.main.select.addEventListener('change', () => this.render());
+            this.followers.forEach((field) => field.select.addEventListener('change', () => {
+                field.followsMain = field.select.value === this.main.select.value;
+                this.render();
+            }));
             this.render();
         }
 
-        get unit() {
-            return ActivityUnit.parse(this.select.value);
+        get mainUnit() {
+            return ActivityUnit.parse(this.main.select.value);
+        }
+
+        /** The unit of one activity field, e.g. of('residualActivity'). */
+        of(fieldName) {
+            return ActivityUnit.parse(this.fields[fieldName].select.value);
         }
 
         render() {
-            const unit = this.unit;
-
-            const renderConversion = ({ input, output }) => {
-                const value = Number(input.value);
-                const hasValue = input.value !== '' && Number.isFinite(value);
-                const lines = hasValue ? Format.equivalents(unit.toBq(value), unit) : [];
-                output.replaceChildren(...lines.map((text) => createElement('span', null, `= ${text}`)));
-            };
-
-            this.inheritedUnitLabels.forEach((label) => {
-                label.textContent = unit.isUnitless ? 'no unit' : unit.symbol;
-                label.classList.toggle('unit-addon--empty', unit.isUnitless);
-            });
-            this.conversions.forEach(renderConversion);
+            const mainUnit = this.mainUnit;
+            for (const field of this.followers) {
+                if (mainUnit.isUnitless) field.followsMain = true;
+                if (field.followsMain) field.select.value = this.main.select.value;
+                field.select.querySelector('option[value=""]').disabled = !mainUnit.isUnitless;
+                field.select.disabled = mainUnit.isUnitless;
+                field.select.title = mainUnit.isUnitless
+                    ? 'Choose a unit for the initial activity first'
+                    : 'Unit for this value (it can differ from the initial activity’s unit)';
+            }
+            Object.values(this.fields).forEach((field) => this.#renderConversion(field, mainUnit));
         }
 
-        #populate() {
+        /** Under each input: the value in the main unit (if different) and in the other base units. */
+        #renderConversion({ input, select, conversion }, mainUnit) {
+            const unit = ActivityUnit.parse(select.value);
+            const value = Number(input.value);
+            const lines = [];
+
+            if (input.value !== '' && Number.isFinite(value) && !unit.isUnitless) {
+                const bq = unit.toBq(value);
+                const showMainUnit = unit.symbol !== mainUnit.symbol;
+                if (showMainUnit) lines.push(Format.activityIn(bq, mainUnit));
+                BASE_UNITS
+                    .filter((base) => base !== unit.baseUnit && !(showMainUnit && base === mainUnit.baseUnit))
+                    .forEach((base) => lines.push(Format.activity(bq, base)));
+            }
+            conversion.replaceChildren(...lines.map((text) => createElement('span', null, `= ${text}`)));
+        }
+
+        #populate(select) {
             const option = (value, text) => {
                 const element = createElement('option', null, text);
                 element.value = value;
                 return element;
             };
-            this.select.append(
+            select.append(
                 option('', '-- No Unit --'),
                 ...SELECTABLE_ACTIVITY_UNITS.map((symbol) => option(symbol, symbol)),
             );
@@ -142,25 +212,41 @@
     }
 
     /* ================================================================== */
-    /* Result rendering helpers                                            */
+    /* Result helpers                                                      */
     /* ================================================================== */
 
-    /** A labelled activity: the value in the chosen unit, then its equivalents. */
-    function createActivityGroup(label, activity, unit, suffix = '') {
+    /** The other base units of an activity, e.g. ["9.159 mCi", "338.880 Rd"]. */
+    const equivalentsOf = (activity, unit, suffix = '') =>
+        Format.equivalents(activity, unit).map((text) => `${text}${suffix}`);
+
+    /** "338.880 MBq (= 9.159 mCi, = 338.880 Rd)" — for copied text. */
+    function activityText(activity, unit, suffix = '') {
+        const equivalents = equivalentsOf(activity, unit, suffix);
+        const main = `${Format.activityIn(activity, unit)}${suffix}`;
+        return equivalents.length ? `${main} (= ${equivalents.join(', = ')})` : main;
+    }
+
+    /**
+     * A labelled result: a main value, then either equivalent values ("= 9.159 mCi")
+     * or, with `detail`, one explanatory line.
+     */
+    function createResultGroup(label, mainText, equivalents = [], detail = '') {
         const group = createElement('div', 'result-group');
         group.append(
             createElement('div', 'result-group__label', label),
-            createElement('div', 'result-group__primary', Format.activityIn(activity, unit) + suffix),
+            createElement('div', 'result-group__primary', mainText),
         );
-
-        const equivalents = Format.equivalents(activity, unit);
-        if (equivalents.length > 0) {
+        const lines = [...equivalents.map((text) => `= ${text}`), ...(detail ? [detail] : [])];
+        if (lines.length > 0) {
             const list = createElement('ul', 'result-group__equivalents');
-            list.append(...equivalents.map((text) => createElement('li', null, `= ${text}${suffix}`)));
+            list.append(...lines.map((text) => createElement('li', null, text)));
             group.append(list);
         }
         return group;
     }
+
+    const createActivityGroup = (label, activity, unit, suffix = '') =>
+        createResultGroup(label, `${Format.activityIn(activity, unit)}${suffix}`, equivalentsOf(activity, unit, suffix));
 
     /** E.g. "2.000 hours after the initial measurement · 0.333 half-lives · 79.37% remaining". */
     function describeDecay({ elapsedSeconds, halfLives, decayFactor }, referenceName) {
@@ -177,6 +263,9 @@
     const referenceNameOf = (scenario) =>
         (scenario.usesResidual ? 'residual measurement' : 'initial measurement');
 
+    const perMlSuffix = (unit) => (unit.isUnitless ? ' per mL' : '/mL');
+    const pastNote = (time) => (time.getTime() < Date.now() ? ' (in the past)' : '');
+
     /* ================================================================== */
     /* Calculations                                                        */
     /* ================================================================== */
@@ -184,14 +273,22 @@
     /**
      * One kind of answer, shown in its own panel. Subclasses say which extra
      * inputs they need, how to compute the answer and how to display it.
+     * Each render also leaves a plain-text `summary` for the Copy button.
      */
     class Calculation {
+        /** True when the result changes with the clock; it is then refreshed every second. */
+        dependsOnNow = false;
+
+        /** False for a calculation that does not use the main inputs (initial activity, half-life, ...). */
+        usesSharedInputs = true;
+
         constructor(panelElement) {
             this.panel = new ResultPanel(panelElement);
+            this.summary = [];
         }
 
         /** Extra inputs beyond the shared ones (initial activity, half-life, ...). */
-        readExtras(/* reader, unit */) {
+        readExtras(/* reader, { units } */) {
             return {};
         }
 
@@ -199,76 +296,394 @@
             throw new Error(`${this.constructor.name} must implement compute().`);
         }
 
-        render(/* result, { scenario, unit } */) {
+        render(/* result, { scenario, unit, extras } */) {
             throw new Error(`${this.constructor.name} must implement render().`);
         }
 
         /** With a residual, states the injected activity that everything is based on. */
         renderReference(scenario, unit) {
             const { activity, time } = scenario.reference;
-            this.panel.setSlot('reference', scenario.usesResidual
+            const text = scenario.usesResidual
                 ? `Injected activity: ${Format.activityIn(activity, unit)} at ${Format.dateTime(time)} ` +
                   '(initial activity decayed to the residual measurement, minus the residual).'
-                : '');
+                : '';
+            this.panel.setSlot('reference', text);
+            return text;
         }
     }
 
     /** Activity at one moment, plus concentration and partial-volume activity when a volume is given. */
     class ActivityAtTimeCalculation extends Calculation {
+        timeLabel = 'Time';
+
         compute(scenario, { time }) {
             return scenario.activityAt(time);
         }
 
+        describeTime(result) {
+            return Format.dateTime(result.time);
+        }
+
         render(result, { scenario, unit }) {
-            const perMl = unit.isUnitless ? ' per mL' : '/mL';
             const groups = [
                 ['Activity', result.activity, ''],
-                result.concentration !== null && ['Concentration', result.concentration, perMl],
+                result.concentration !== null && ['Concentration', result.concentration, perMlSuffix(unit)],
                 result.drawnActivity !== null &&
                     [`Activity in Partial Volume (${Format.number(scenario.vial.drawnMl)} mL)`, result.drawnActivity, ''],
             ].filter(Boolean);
 
+            const timeText = this.describeTime(result, scenario);
+            const decayText = describeDecay(result, referenceNameOf(scenario));
+
             this.panel.slot('groups').replaceChildren(
                 ...groups.map(([label, activity, suffix]) => createActivityGroup(label, activity, unit, suffix)));
-            this.panel.setSlot('time', Format.dateTime(result.time));
-            this.panel.setSlot('decay', describeDecay(result, referenceNameOf(scenario)));
-            this.renderReference(scenario, unit);
+            this.panel.setSlot('time', timeText);
+            this.panel.setSlot('decay', decayText);
+            const referenceText = this.renderReference(scenario, unit);
+
+            this.summary = [
+                ...groups.map(([label, activity, suffix]) => `${label}: ${activityText(activity, unit, suffix)}`),
+                `${this.timeLabel}: ${timeText}`,
+                decayText,
+                referenceText,
+            ].filter(Boolean);
         }
     }
 
     class CurrentActivityCalculation extends ActivityAtTimeCalculation {
+        dependsOnNow = true;
+        timeLabel = 'Calculated at';
+
         readExtras() {
             return { time: new Date() };
         }
     }
 
+    /** Activity at a chosen date, or a chosen interval after the initial measurement. */
     class SpecificTimeCalculation extends ActivityAtTimeCalculation {
+        timeLabel = 'For date';
+
+        constructor(panelElement, { modeRadios, modeGroups, elapsedUnit }) {
+            super(panelElement);
+            this.modeRadios = modeRadios;
+            this.modeGroups = modeGroups;
+            this.elapsedUnit = elapsedUnit;
+            modeRadios.forEach((radio) => radio.addEventListener('change', () => this.#showModeInputs()));
+            this.#showModeInputs();
+        }
+
+        get mode() {
+            return this.modeRadios.find((radio) => radio.checked).value;
+        }
+
         readExtras(reader) {
+            if (this.mode === 'elapsed') {
+                const value = reader.number('elapsedTime', { name: 'time interval' });
+                return { elapsedSeconds: value === null ? null : timeToSeconds(value, this.elapsedUnit.value) };
+            }
             return { time: reader.dateTime('specificTime', { name: 'specific date and time' }) };
+        }
+
+        compute(scenario, { time, elapsedSeconds }) {
+            return scenario.activityAt(time || new Date(scenario.initial.time.getTime() + elapsedSeconds * 1000));
+        }
+
+        describeTime(result, scenario) {
+            if (this.mode !== 'elapsed') return Format.dateTime(result.time);
+            const sinceInitial = (result.time.getTime() - scenario.initial.time.getTime()) / 1000;
+            return `${Format.dateTime(result.time)} (${Format.duration(sinceInitial)} after the initial measurement)`;
+        }
+
+        #showModeInputs() {
+            this.modeGroups.forEach((group) => { group.hidden = group.dataset.specificMode !== this.mode; });
         }
     }
 
     class TimeToTargetCalculation extends Calculation {
-        readExtras(reader, unit) {
+        readExtras(reader, { units }) {
             const target = reader.number('targetActivity', { name: 'target activity', positive: true });
-            return { targetActivity: target === null ? null : unit.toBq(target) };
+            return { targetActivity: target === null ? null : units.of('targetActivity').toBq(target) };
         }
 
         compute(scenario, { targetActivity }) {
             return scenario.timeToReach(targetActivity);
         }
 
-        render({ time, elapsedSeconds, halfLives }, { scenario, unit }) {
-            const isPast = time.getTime() < Date.now();
+        render({ time, elapsedSeconds, halfLives }, { scenario, unit, extras }) {
+            const referenceName = referenceNameOf(scenario);
             const relative = Math.abs(elapsedSeconds) < 1e-3
                 ? 'already at the target activity'
                 : `${Format.duration(elapsedSeconds)} ${elapsedSeconds > 0 ? 'after' : 'before'} it ` +
                   `(${Format.number(Math.abs(halfLives))} half-lives)`;
+            const timeText = `${Format.dateTime(time)}${pastNote(time)}`;
 
-            this.panel.setSlot('time', `${Format.dateTime(time)}${isPast ? ' (in the past)' : ''}`);
-            this.panel.setSlot('reference-name', referenceNameOf(scenario));
+            this.panel.setSlot('time', timeText);
+            this.panel.setSlot('reference-name', referenceName);
             this.panel.setSlot('relative', relative);
-            this.renderReference(scenario, unit);
+            const referenceText = this.renderReference(scenario, unit);
+
+            this.summary = [
+                `Target activity: ${activityText(extras.targetActivity, unit)}`,
+                `Reached at: ${timeText}`,
+                `Relative to the ${referenceName}: ${relative}`,
+                referenceText,
+            ].filter(Boolean);
+        }
+    }
+
+    /** Dose drawing: the volume that holds the desired activity at administration time. */
+    class DoseCalculation extends Calculation {
+        dependsOnNow = true; // the expected reading "now" changes with the clock
+
+        readExtras(reader, { units }) {
+            const desired = reader.number('desiredActivity', { name: 'desired activity', positive: true });
+            const desiredUnit = units.of('desiredActivity');
+            return {
+                desiredUnit,
+                desiredActivity: desired === null ? null : desiredUnit.toBq(desired),
+                time: reader.dateTime('administrationTime', { name: 'administration date and time' }),
+            };
+        }
+
+        compute(scenario, { desiredActivity, time }) {
+            return scenario.volumeFor(desiredActivity, time, new Date());
+        }
+
+        render(result, { scenario, unit, extras }) {
+            const doseUnit = extras.desiredUnit;
+            const readingLabel = `Expected Dose-Calibrator Reading Now (${Format.dateTime(result.readingTime)})`;
+            const volumeText = `${Format.number(result.volumeMl)} mL`;
+            const ofVial = `of ${Format.number(scenario.vial.totalMl)} mL in the vial`;
+            const timeText = `${Format.dateTime(result.time)}${pastNote(result.time)}`;
+            const note = result.time.getTime() < Date.now()
+                ? 'The administration time is in the past; the expected reading is lower than the desired activity.'
+                : '';
+
+            this.panel.slot('groups').replaceChildren(
+                createResultGroup('Volume to Draw', volumeText, [], ofVial),
+                createActivityGroup('Activity at Administration', extras.desiredActivity, doseUnit),
+                createActivityGroup(readingLabel, result.readingActivity, doseUnit),
+                createActivityGroup('Vial Concentration at Administration', result.concentration, unit, perMlSuffix(unit)),
+            );
+            this.panel.setSlot('time', timeText);
+            this.panel.setSlot('note', note);
+            const referenceText = this.renderReference(scenario, unit);
+
+            this.summary = [
+                `Volume to draw: ${volumeText} (${ofVial})`,
+                `Activity at administration: ${activityText(extras.desiredActivity, doseUnit)}`,
+                `Administration: ${timeText}`,
+                `${readingLabel}: ${activityText(result.readingActivity, doseUnit)}`,
+                `Vial concentration at administration: ${activityText(result.concentration, unit, perMlSuffix(unit))}`,
+                note,
+                referenceText,
+            ].filter(Boolean);
+        }
+    }
+
+    /** A table of the activity at regular intervals; prints and copies (as tab-separated text). */
+    class DecayTableCalculation extends Calculation {
+        constructor(panelElement, { stepUnit, describeHalfLife }) {
+            super(panelElement);
+            this.stepUnit = stepUnit;
+            this.describeHalfLife = describeHalfLife;
+        }
+
+        readExtras(reader) {
+            const start = reader.dateTime('tableStart', { name: 'start date and time', required: false });
+            const step = reader.number('tableStep', { name: 'interval', positive: true });
+            const rows = reader.number('tableRows', { name: 'number of rows', positive: true });
+            if (rows !== null && !Number.isInteger(rows)) {
+                reader.fail('tableRows', 'Number of rows must be a whole number.');
+            }
+            return { start, rows, stepSeconds: step === null ? null : timeToSeconds(step, this.stepUnit.value) };
+        }
+
+        compute(scenario, { start, stepSeconds, rows }) {
+            return scenario.schedule(start || scenario.reference.time, stepSeconds, rows);
+        }
+
+        render(rows, { scenario, unit }) {
+            const otherBase = unit.baseUnit === 'Ci' ? 'Bq' : 'Ci';
+            const columns = [
+                { title: 'Date & Time', cell: (row) => Format.dateTime(row.time) },
+                {
+                    title: 'From Start',
+                    cell: (row) => {
+                        const seconds = (row.time - rows[0].time) / 1000;
+                        return seconds === 0 ? '0' : `+${Format.shortDuration(seconds)}`;
+                    },
+                },
+                { title: unit.isUnitless ? 'Activity' : `Activity (${unit.symbol})`, cell: (row) => Format.number(unit.fromBq(row.activity)) },
+                !unit.isUnitless && { title: `Activity (${otherBase})`, cell: (row) => Format.activity(row.activity, otherBase) },
+                { title: '% of Reference', cell: (row) => Format.percent(row.decayFactor) },
+                scenario.vial && {
+                    title: unit.isUnitless ? 'Concentration (per mL)' : `Concentration (${unit.symbol}/mL)`,
+                    cell: (row) => Format.number(unit.fromBq(row.concentration)),
+                },
+            ].filter(Boolean);
+
+            const now = Date.now();
+            const stepMs = rows.length > 1 ? rows[1].time - rows[0].time : 0;
+            const isCurrentRow = (row) => now >= row.time.getTime() && now < row.time.getTime() + stepMs;
+
+            const headRow = createElement('tr');
+            headRow.append(...columns.map((column) => {
+                const th = createElement('th', null, column.title);
+                th.scope = 'col';
+                return th;
+            }));
+            this.panel.slot('head').replaceChildren(headRow);
+            this.panel.slot('rows').replaceChildren(...rows.map((row) => {
+                const tr = createElement('tr', isCurrentRow(row) ? 'is-now' : null);
+                tr.append(...columns.map((column) => createElement('td', null, column.cell(row))));
+                if (isCurrentRow(row)) tr.title = 'The current time falls in this row';
+                return tr;
+            }));
+
+            const reference = scenario.reference;
+            const caption = `${this.describeHalfLife()} · Reference: ` +
+                `${scenario.usesResidual ? 'injected activity ' : ''}${Format.activityIn(reference.activity, unit)} ` +
+                `at ${Format.dateTime(reference.time)}`;
+            this.panel.setSlot('caption', caption);
+
+            this.summary = [
+                caption,
+                columns.map((column) => column.title).join('\t'),
+                ...rows.map((row) => columns.map((column) => column.cell(row)).join('\t')),
+            ];
+        }
+    }
+
+    /** Mo-99/Tc-99m generator: expected eluate, Tc-99m ingrowth and an optional Mo-99 breakthrough check. */
+    class GeneratorCalculation extends Calculation {
+        usesSharedInputs = false;
+
+        /** The last computed eluate, for "Use this eluate as the initial activity". */
+        lastEluate = null;
+
+        readExtras(reader, { units }) {
+            const toBq = (value, fieldName) => (value === null ? null : units.of(fieldName).toBq(value));
+
+            // Read in on-screen order, so the first error reported is the top-most one.
+            const moActivity = reader.number('generatorMo', { name: 'Mo-99 activity at calibration', positive: true });
+            const calibration = reader.dateTime('generatorCalibration', { name: 'calibration date and time' });
+            const lastElution = reader.dateTime('generatorLastElution', { name: 'last elution date and time', required: false });
+            const time = reader.dateTime('generatorElution', { name: 'elution date and time' });
+
+            const efficiencyPercent = reader.number('generatorEfficiency', { name: 'elution efficiency', positive: true });
+            if (efficiencyPercent !== null && efficiencyPercent > 100) {
+                reader.fail('generatorEfficiency', 'Elution efficiency cannot exceed 100%.');
+            }
+            const branching = reader.number('generatorBranching', { name: 'branching fraction', positive: true });
+            if (branching !== null && branching > 1) {
+                reader.fail('generatorBranching', 'The branching fraction cannot exceed 1.');
+            }
+
+            const eluateMo = reader.number('eluateMo', { name: 'Mo-99 measured in the eluate', required: false });
+            const eluateTc = reader.number('eluateTc', { name: 'Tc-99m measured in the eluate', positive: true, required: false });
+            const limit = eluateMo === null
+                ? null
+                : reader.number('breakthroughLimit', { name: 'breakthrough limit', positive: true });
+
+            return {
+                unit: units.of('generatorMo'),
+                moActivity: toBq(moActivity, 'generatorMo'),
+                calibration,
+                lastElution,
+                time,
+                efficiency: efficiencyPercent === null ? null : efficiencyPercent / 100,
+                branching,
+                eluateMo: toBq(eluateMo, 'eluateMo'),
+                eluateTc: toBq(eluateTc, 'eluateTc'),
+                limit: limit === null ? null : limit / 1000, // kBq/MBq -> ratio
+            };
+        }
+
+        compute(scenario, inputs) {
+            const model = new ParentDaughterModel({
+                parent: new DecayModel(findIsotope('MO-99').halfLifeSec),
+                daughter: new DecayModel(findIsotope('TC-99M1').halfLifeSec),
+                branching: inputs.branching,
+            });
+            const generator = new Generator({
+                model,
+                calibration: new Measurement(inputs.moActivity, inputs.calibration, 'generatorMo'),
+                lastElution: inputs.lastElution,
+            });
+            const elution = generator.elute(inputs.time, inputs.efficiency);
+            const breakthrough = inputs.eluateMo === null ? null : model.breakthrough({
+                parentActivity: inputs.eluateMo,
+                daughterActivity: inputs.eluateTc === null ? elution.eluate : inputs.eluateTc,
+                time: inputs.time,
+                limit: inputs.limit,
+            });
+            return { ...elution, model, breakthrough, usesMeasuredTc: inputs.eluateTc !== null };
+        }
+
+        render(result, { extras }) {
+            const unit = extras.unit;
+            const efficiencyText = `${Number((result.efficiency * 100).toPrecision(4))}%`;
+            const groups = [
+                [result.efficiency < 1 ? `Expected Tc-99m in the Eluate (${efficiencyText} efficiency)`
+                    : 'Expected Tc-99m in the Eluate', result.eluate],
+                result.efficiency < 1 && ['Tc-99m on the Column (100%)', result.available],
+                ['Mo-99 on the Column at Elution', result.parentActivity],
+            ].filter(Boolean);
+
+            const ingrowthText = this.#describeIngrowth(result);
+            const breakthrough = this.#describeBreakthrough(result);
+            const timeText = Format.dateTime(result.time);
+
+            this.panel.slot('groups').replaceChildren(
+                ...groups.map(([label, activity]) => createActivityGroup(label, activity, unit)));
+            this.panel.setSlot('time', timeText);
+            this.panel.setSlot('ingrowth', ingrowthText);
+            this.panel.setSlot('breakthrough', breakthrough.text);
+            this.panel.slot('breakthrough').dataset.state = breakthrough.state;
+
+            this.lastEluate = { activity: result.eluate, time: result.time };
+            this.summary = [
+                ...groups.map(([label, activity]) => `${label}: ${activityText(activity, unit)}`),
+                `Elution at: ${timeText}`,
+                ingrowthText,
+                breakthrough.text,
+            ].filter(Boolean);
+        }
+
+        #describeIngrowth({ sinceLastElution, fractionOfMaximum, maximumAt, model }) {
+            if (sinceLastElution === null) {
+                return 'No last elution entered: transient equilibrium assumed ' +
+                    `(Tc-99m = ${Format.number(model.equilibriumRatio)} × Mo-99), ` +
+                    'valid if the generator was not eluted in the last 2 days.';
+            }
+            return `${Format.duration(sinceLastElution)} since the last elution · ` +
+                `${Format.percent(fractionOfMaximum)} of the maximum yield, which is reached ` +
+                `${Format.shortDuration(model.timeOfMaximum)} after an elution (${Format.dateTime(maximumAt)}).`;
+        }
+
+        #describeBreakthrough({ breakthrough, usesMeasuredTc }) {
+            if (!breakthrough) return { text: '', state: '' };
+
+            // Up to 3 significant digits, written as people write limits: "0.05", "0.15".
+            const perMBq = (ratio) => `${Number((ratio * 1000).toPrecision(3))} kBq/MBq`;
+            const basis = usesMeasuredTc ? '' : ' (against the expected eluate)';
+            const measured = `Mo-99 breakthrough: ${perMBq(breakthrough.ratio)} at elution${basis}`;
+            if (breakthrough.exceeded) {
+                return {
+                    state: 'alert',
+                    text: `${measured} — above the ${perMBq(breakthrough.limit)} limit. Do not use this eluate.`,
+                };
+            }
+            if (!breakthrough.limitReachedAt) {
+                return { state: 'ok', text: `${measured}; it never reaches the ${perMBq(breakthrough.limit)} limit.` };
+            }
+            return {
+                state: 'ok',
+                text: `${measured}, below the ${perMBq(breakthrough.limit)} limit. The ratio grows as Tc-99m decays and ` +
+                    `reaches the limit ${Format.duration(breakthrough.secondsToLimit)} after elution ` +
+                    `(${Format.dateTime(breakthrough.limitReachedAt)}): use the eluate before then.`,
+            };
         }
     }
 
@@ -291,16 +706,7 @@
                 unitSelect: byId('halfLifeUnit'),
                 hint: byId('halfLifeHint'),
             });
-
-            this.activityUnit = new ActivityUnitControl({
-                select: byId('initialActivityUnit'),
-                inheritedUnitLabels: [...doc.querySelectorAll('[data-inherited-unit]')],
-                conversions: [
-                    ['initialActivity', 'initialActivityConversion'],
-                    ['residualActivityValue', 'residualActivityConversion'],
-                    ['targetActivityValue', 'targetActivityConversion'],
-                ].map(([inputId, outputId]) => ({ input: byId(inputId), output: byId(outputId) })),
-            });
+            this.units = new ActivityUnits(doc, ACTIVITY_FIELDS);
 
             const refresh = () => this.refresh();
             this.residualSection = new ToggleSection(byId('toggleResidualButton'), byId('residualInputsSection'), {
@@ -316,12 +722,22 @@
 
             this.calculations = {
                 current: new CurrentActivityCalculation(byId('currentActivitySection')),
-                specific: new SpecificTimeCalculation(byId('specificActivitySection')),
+                specific: new SpecificTimeCalculation(byId('specificActivitySection'), {
+                    modeRadios: [...doc.querySelectorAll('input[name="specificMode"]')],
+                    modeGroups: [...doc.querySelectorAll('[data-specific-mode]')],
+                    elapsedUnit: byId('elapsedUnit'),
+                }),
                 target: new TimeToTargetCalculation(byId('timeToTargetSection')),
+                dose: new DoseCalculation(byId('doseSection')),
+                table: new DecayTableCalculation(byId('tableSection'), {
+                    stepUnit: byId('tableStepUnit'),
+                    describeHalfLife: () => this.halfLife.describe(),
+                }),
+                generator: new GeneratorCalculation(byId('generatorSection')),
             };
 
             this.#bindEvents(byId);
-            setInterval(() => this.#tickCurrentActivity(), LIVE_UPDATE_INTERVAL_MS);
+            setInterval(() => this.#refreshClockDependentResults(), LIVE_UPDATE_INTERVAL_MS);
         }
 
         /** A calculate button was pressed: show that result and keep it live from now on. */
@@ -329,10 +745,12 @@
             calculation.panel.activate();
             this.messages.hide();
             const problem = this.refresh().get(calculation);
-            if (problem) this.messages.show(problem, 'error');
+            if (!problem) return;
+            this.messages.show(problem.message, 'error');
+            this.#revealField(problem.field);
         }
 
-        /** Recomputes every active result. Returns a Map of calculation -> first error message. */
+        /** Recomputes every active result. Returns a Map of calculation -> its first problem. */
         refresh() {
             const problems = new Map();
             const fieldErrors = new Map();
@@ -342,9 +760,10 @@
                 const errors = this.#run(calculation);
                 if (errors.size === 0) continue;
 
-                problems.set(calculation, errors.values().next().value);
-                errors.forEach((message, fieldName) => {
-                    if (!fieldErrors.has(fieldName)) fieldErrors.set(fieldName, message);
+                const [field, message] = errors.entries().next().value;
+                problems.set(calculation, { field, message });
+                errors.forEach((text, fieldName) => {
+                    if (!fieldErrors.has(fieldName)) fieldErrors.set(fieldName, text);
                 });
             }
 
@@ -352,21 +771,24 @@
 
             // An error pop-up whose problem has since been fixed would be stale: remove it.
             const shownError = this.messages.visibleError;
-            if (shownError && ![...problems.values()].includes(shownError)) this.messages.hide();
-
+            if (shownError && ![...problems.values()].some((problem) => problem.message === shownError)) {
+                this.messages.hide();
+            }
             return problems;
         }
 
         /** Runs one calculation and shows its result. Returns its errors (field -> message), if any. */
         #run(calculation) {
             const reader = new FormReader(this.fields);
-            const inputs = this.#readSharedInputs(reader);
-            const extras = calculation.readExtras(reader, inputs.unit);
+            const inputs = calculation.usesSharedInputs ? this.#readSharedInputs(reader) : null;
+            const extras = calculation.readExtras(reader, { units: this.units });
 
             if (reader.isValid) {
                 try {
-                    const scenario = this.#buildScenario(inputs);
-                    calculation.render(calculation.compute(scenario, extras), { scenario, unit: inputs.unit });
+                    const scenario = inputs ? this.#buildScenario(inputs) : null;
+                    const unit = this.units.mainUnit;
+                    calculation.render(calculation.compute(scenario, extras), { scenario, unit, extras });
+                    calculation.context = { scenario, unit };
                     calculation.panel.show();
                     return reader.errors;
                 } catch (error) {
@@ -381,7 +803,6 @@
 
         #readSharedInputs(reader) {
             return {
-                unit: this.activityUnit.unit,
                 initialActivity: reader.number('initialActivity', { name: 'initial activity' }),
                 halfLifeSeconds: this.halfLife.read(reader),
                 initialTime: reader.dateTime('initialTime', { name: 'date and time of the initial activity' }),
@@ -412,14 +833,94 @@
             };
         }
 
-        #buildScenario({ unit, initialActivity, halfLifeSeconds, initialTime, residual, vial }) {
+        #buildScenario({ initialActivity, halfLifeSeconds, initialTime, residual, vial }) {
+            const units = this.units;
             return new DecayScenario({
                 model: new DecayModel(halfLifeSeconds),
-                initial: new Measurement(unit.toBq(initialActivity), initialTime, 'initialActivity'),
-                residual: residual &&
-                    new Measurement(unit.toBq(residual.activity), residual.time, 'residualActivity'),
+                initial: new Measurement(units.of('initialActivity').toBq(initialActivity), initialTime, 'initialActivity'),
+                residual: residual && new Measurement(
+                    units.of('residualActivity').toBq(residual.activity), residual.time, 'residualActivity'),
                 vial: vial && new Vial(vial.totalMl, vial.partialMl),
             });
+        }
+
+        /** Opens a collapsed section when the problem is in one of its fields. */
+        #revealField(fieldName) {
+            const field = this.fields[fieldName];
+            if (!field) return;
+            const section = [this.residualSection, this.volumeSection]
+                .find((toggle) => toggle.panel.contains(field.input));
+            if (section && !section.isOpen) {
+                section.toggle(true);
+                field.input.focus();
+            }
+            const details = field.input.closest('details');
+            if (details && !details.open) {
+                details.open = true;
+                field.input.focus();
+            }
+        }
+
+        /** Loads the generator's eluate into the main inputs, as Tc-99m at the elution time. */
+        #useEluate() {
+            const eluate = this.calculations.generator.lastEluate;
+            if (!eluate) return;
+
+            const mainUnit = this.units.mainUnit;
+            const activityInput = this.fields.initialActivity.input;
+            const timeInput = this.fields.initialTime.input;
+            activityInput.value = String(Number(mainUnit.fromBq(eluate.activity).toPrecision(6)));
+            timeInput.value = toDateTimeLocalValue(eluate.time);
+            this.halfLife.isotopeSelect.value = 'TC-99M1';
+            this.halfLife.isotopeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            [activityInput, timeInput].forEach((input) => input.dispatchEvent(new Event('input', { bubbles: true })));
+
+            activityInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            activityInput.focus({ preventScroll: true });
+            this.messages.show(`Initial activity set to the eluate: ${Format.activityIn(eluate.activity, mainUnit)} ` +
+                `of Tc-99m at ${Format.dateTime(eluate.time)}.`, 'success');
+        }
+
+        /** The text the Copy button puts on the clipboard: the inputs, then the result. */
+        #copyTextFor(calculation) {
+            const { scenario, unit } = calculation.context;
+            const lines = [`Half-Life · Radioactive Decay Calculator (copied ${Format.dateTime(new Date())})`];
+            if (scenario) {
+                lines.push(
+                    `Half-life: ${this.halfLife.describe()}`,
+                    `Initial activity: ${Format.activityIn(scenario.initial.activity, unit)} at ${Format.dateTime(scenario.initial.time)}`,
+                );
+            }
+            if (scenario && scenario.residual) {
+                lines.push(`Residual activity: ${Format.activityIn(scenario.residual.activity, unit)} ` +
+                    `at ${Format.dateTime(scenario.residual.time)}`);
+            }
+            if (scenario && scenario.vial) {
+                const partial = scenario.vial.drawnMl === null ? '' : `, partial volume ${Format.number(scenario.vial.drawnMl)} mL`;
+                lines.push(`Vial: ${Format.number(scenario.vial.totalMl)} mL total${partial}`);
+            }
+            const title = calculation.panel.section.querySelector('h3').textContent;
+            return [...lines, '', title, ...calculation.summary].join('\n');
+        }
+
+        async #copy(button) {
+            const calculation = Object.values(this.calculations)
+                .find((candidate) => candidate.panel.section.contains(button));
+            if (!calculation || !calculation.context) return;
+
+            const copied = await copyToClipboard(this.#copyTextFor(calculation));
+            const label = button.textContent;
+            button.textContent = copied ? 'Copied ✓' : 'Copy failed';
+            setTimeout(() => { button.textContent = label; }, 1500);
+        }
+
+        #print() {
+            const root = document.documentElement;
+            root.dataset.printing = 'table';
+            const done = () => { delete root.dataset.printing; };
+            window.addEventListener('afterprint', done, { once: true });
+            window.print();
+            setTimeout(done, 1000);
         }
 
         #bindEvents(byId) {
@@ -427,6 +928,9 @@
                 calculateButton: this.calculations.current,
                 calculateSpecificButton: this.calculations.specific,
                 calculateTimeToTargetButton: this.calculations.target,
+                calculateDoseButton: this.calculations.dose,
+                calculateTableButton: this.calculations.table,
+                calculateGeneratorButton: this.calculations.generator,
             };
             Object.entries(buttonTargets).forEach(([id, calculation]) =>
                 byId(id).addEventListener('click', () => this.request(calculation)));
@@ -435,13 +939,17 @@
             this.form.addEventListener('input', () => this.refresh());
             this.form.addEventListener('change', () => this.refresh());
 
-            // "Now" fills the date field next to the button.
             this.form.addEventListener('click', (event) => {
-                const button = event.target.closest('[data-now-for]');
-                if (!button) return;
-                const input = byId(button.dataset.nowFor);
-                input.value = toDateTimeLocalValue(new Date());
-                input.dispatchEvent(new Event('input', { bubbles: true }));
+                const nowButton = event.target.closest('[data-now-for]');
+                if (nowButton) {
+                    const input = byId(nowButton.dataset.nowFor);
+                    input.value = toDateTimeLocalValue(new Date());
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                const copyButton = event.target.closest('[data-copy]');
+                if (copyButton) this.#copy(copyButton);
+                if (event.target.closest('[data-print]')) this.#print();
+                if (event.target.closest('[data-use-eluate]')) this.#useEluate();
             });
 
             // Enter in a field runs the calculation of the section the field is in.
@@ -452,11 +960,30 @@
             });
         }
 
-        #tickCurrentActivity() {
-            const { current } = this.calculations;
-            if (current.panel.isVisible && document.visibilityState === 'visible') {
-                this.#run(current);
-            }
+        #refreshClockDependentResults() {
+            if (document.visibilityState !== 'visible') return;
+            Object.values(this.calculations)
+                .filter((calculation) => calculation.dependsOnNow && calculation.panel.isVisible)
+                .forEach((calculation) => this.#run(calculation));
+        }
+    }
+
+    /** Copies text; falls back to a hidden textarea where the Clipboard API is unavailable. */
+    async function copyToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (clipboardUnavailable) {
+            const textarea = createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.append(textarea);
+            textarea.select();
+            const copied = document.execCommand('copy');
+            textarea.remove();
+            return copied;
         }
     }
 

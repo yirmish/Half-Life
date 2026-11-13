@@ -116,6 +116,13 @@
     --panel-close-text: #fff;
     --panel-close-bg: #6c757d;
     --panel-close-bg-hover: #5a6268;
+
+    --mode-active-text: #0056b3;
+    --mode-active-bg: #e0efff;
+    --table-border: #e2e8f0;
+    --table-head-bg: #edf2f7;
+    --table-stripe: #f8fafc;
+    --table-now-bg: #fff3cd;
 }
 
 .button--primary {
@@ -138,6 +145,18 @@
     --btn-bg: linear-gradient(to bottom, #e74c3c, #c0392b);
     --btn-bg-hover: linear-gradient(to bottom, #c0392b, #a93226);
 }
+.button--dose {
+    --btn-bg: linear-gradient(to bottom, #7f53e0, #5b34c9);
+    --btn-bg-hover: linear-gradient(to bottom, #6c43d0, #4a25b0);
+}
+.button--table {
+    --btn-bg: linear-gradient(to bottom, #f39c12, #d68910);
+    --btn-bg-hover: linear-gradient(to bottom, #d68910, #b9770e);
+}
+.button--generator {
+    --btn-bg: linear-gradient(to bottom, #16a085, #117864);
+    --btn-bg-hover: linear-gradient(to bottom, #138d75, #0e6251);
+}
 
 /* ==========================================================================
    Radioactive
@@ -156,6 +175,9 @@
     --rx-purple: #aa00ff;
     --rx-red: #ff3333;
     --rx-info: #00ccff;
+    --rx-yellow: #ffd500; /* radiation-warning yellow */
+    --rx-orange: #ff9100;
+    --rx-pink: #ff4fd8;
 
     --glow-green-subtle: 0 0 4px var(--rx-green), 0 0 8px color-mix(in srgb, var(--rx-green) 40%, transparent);
     --glow-green-medium: 0 0 7px var(--rx-green), 0 0 15px color-mix(in srgb, var(--rx-green) 70%, transparent);
@@ -165,6 +187,12 @@
     --glow-purple-medium: 0 0 7px var(--rx-purple), 0 0 15px color-mix(in srgb, var(--rx-purple) 60%, transparent);
     --glow-red: 0 0 8px var(--rx-red), 0 0 15px color-mix(in srgb, var(--rx-red) 50%, transparent);
     --glow-info: 0 0 8px var(--rx-info), 0 0 15px color-mix(in srgb, var(--rx-info) 50%, transparent);
+    --glow-yellow-subtle: 0 0 4px var(--rx-yellow), 0 0 8px color-mix(in srgb, var(--rx-yellow) 40%, transparent);
+    --glow-yellow-medium: 0 0 7px var(--rx-yellow), 0 0 15px color-mix(in srgb, var(--rx-yellow) 70%, transparent);
+    --glow-orange-subtle: 0 0 4px var(--rx-orange), 0 0 8px color-mix(in srgb, var(--rx-orange) 40%, transparent);
+    --glow-orange-medium: 0 0 7px var(--rx-orange), 0 0 15px color-mix(in srgb, var(--rx-orange) 70%, transparent);
+    --glow-pink-subtle: 0 0 4px var(--rx-pink), 0 0 8px color-mix(in srgb, var(--rx-pink) 40%, transparent);
+    --glow-pink-medium: 0 0 7px var(--rx-pink), 0 0 15px color-mix(in srgb, var(--rx-pink) 70%, transparent);
 
     --font-body: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-display: 'Orbitron', var(--font-body);
@@ -293,6 +321,13 @@
     --panel-close-bg: var(--rx-purple);
     --panel-close-bg-hover: color-mix(in srgb, var(--rx-purple) 85%, #fff);
 
+    --mode-active-text: var(--rx-bg-deep);
+    --mode-active-bg: var(--rx-cyan);
+    --table-border: color-mix(in srgb, var(--rx-cyan) 20%, transparent);
+    --table-head-bg: color-mix(in srgb, var(--rx-bg-deep) 60%, transparent);
+    --table-stripe: color-mix(in srgb, var(--rx-cyan) 5%, transparent);
+    --table-now-bg: color-mix(in srgb, var(--rx-green) 18%, transparent);
+
     scrollbar-width: thin;
     scrollbar-color: var(--rx-purple) var(--rx-bg-deep);
 }
@@ -324,6 +359,26 @@
     --btn-shadow-hover: 0 0 12px var(--rx-red), 0 0 25px color-mix(in srgb, var(--rx-red) 70%, transparent),
         inset 0 0 8px rgba(255, 255, 255, 0.3);
 }
+
+[data-theme="radioactive"] .button--dose {
+    --btn-bg: var(--rx-yellow);
+    --btn-bg-hover: color-mix(in srgb, var(--rx-yellow) 85%, #fff);
+    --btn-shadow: var(--glow-yellow-subtle), inset 0 0 5px rgba(255, 255, 255, 0.15);
+    --btn-shadow-hover: var(--glow-yellow-medium), inset 0 0 8px rgba(255, 255, 255, 0.3);
+}
+[data-theme="radioactive"] .button--table {
+    --btn-bg: var(--rx-orange);
+    --btn-bg-hover: color-mix(in srgb, var(--rx-orange) 85%, #fff);
+    --btn-shadow: var(--glow-orange-subtle), inset 0 0 5px rgba(255, 255, 255, 0.15);
+    --btn-shadow-hover: var(--glow-orange-medium), inset 0 0 8px rgba(255, 255, 255, 0.3);
+}
+[data-theme="radioactive"] .button--generator {
+    --btn-bg: var(--rx-pink);
+    --btn-bg-hover: color-mix(in srgb, var(--rx-pink) 85%, #fff);
+    --btn-shadow: var(--glow-pink-subtle), inset 0 0 5px rgba(255, 255, 255, 0.15);
+    --btn-shadow-hover: var(--glow-pink-medium), inset 0 0 8px rgba(255, 255, 255, 0.3);
+}
+[data-theme="radioactive"] .copy-button:hover { box-shadow: var(--glow-cyan-subtle); }
 
 /* Custom drop-down arrow (the native one is unreadable on the dark fields). */
 [data-theme="radioactive"] select {
@@ -377,4 +432,67 @@
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
+}
+
+/* ==========================================================================
+   Print
+   Last in the file, so it overrides both themes' variables.
+   ========================================================================== */
+
+@media print {
+    /* Ink-friendly in both themes: dark text on white, no glows, shadows or controls. */
+    :root,
+    :root[data-theme="radioactive"] {
+        --page-background: #fff;
+        --page-animation: none;
+        --text: #000;
+        --card-background: #fff;
+        --card-border: none;
+        --card-shadow: none;
+        --title-color: #000;
+        --title-glow: none;
+        --subtitle-color: #333;
+        --subtitle-glow: none;
+        --label-color: #333;
+        --label-glow: none;
+        --hint-color: #333;
+        --error: #c00;
+        --error-glow: none;
+        --field-text: #000;
+        --field-background: #fff;
+        --field-border: #999;
+        --section-heading-color: #000;
+        --section-heading-glow: none;
+        --panel-background: #fff;
+        --panel-border: 1px solid #999;
+        --panel-shadow: none;
+        --panel-heading-color: #000;
+        --panel-heading-glow: none;
+        --output-background: #fff;
+        --output-border: 1px solid #999;
+        --output-shadow: none;
+        --output-title-color: #000;
+        --output-title-glow: none;
+        --output-value-color: #000;
+        --output-value-glow: none;
+        --output-meta-color: #333;
+        --output-date-color: #000;
+        --output-date-glow: none;
+        --table-border: #bbb;
+        --table-head-bg: #eee;
+        --table-stripe: transparent;
+        --table-now-bg: #ddd;
+    }
+    body { padding: 0; }
+    .container { max-width: none; margin: 0; padding: 0; }
+    .theme-switcher-button, .theme-panel, .message-box, .dot-field,
+    .button, .now-button, .copy-button, .live-badge { display: none !important; }
+    .output-section { break-inside: avoid; }
+    .decay-table tr { break-inside: avoid; }
+
+    /* The table's "Print" button prints the decay table alone. */
+    [data-printing="table"] .content > :not(#decayTableBlock),
+    [data-printing="table"] #decayTableBlock > :not(#tableSection) { display: none !important; }
+    [data-printing="table"] #decayTableBlock { margin: 0; padding: 0; border: none; }
+    [data-printing="table"] #tableSection { margin: 0; padding: 0; border: none; }
 }
